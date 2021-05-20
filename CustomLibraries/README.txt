@@ -1,0 +1,1 @@
+Every library that is a subdirectory of ~/Documents/Arduino/libraries can be included directly in .ino files(ArduinoIDE).
