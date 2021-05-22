@@ -41,7 +41,7 @@ bool MessagesMap::addMessage(const char *mac, const MessageType msgType, const i
 	return addMessage(iMac, msgType, id);
 }
 
-MessagesMap::mac_t MessagesMap::parseMacAddress(const char *mac) {
+MessagesMap::mac_t MessagesMap::parseMacAddressReadable(const char *mac) {
 	const int MAC_SIZE = 6;
 	int readHalfBytes = 0;	// readHalfBytes * 4 bits = total number of bits
 	mac_t result = 0;
@@ -63,4 +63,27 @@ MessagesMap::mac_t MessagesMap::parseMacAddress(const char *mac) {
 	}
 	
 	return readHalfBytes == 2 * MAC_SIZE ? result : 0;
+}
+
+MessagesMap::mac_t MessagesMap::parseMacAddress(const char *mac) {
+	const int MAC_SIZE = 6;
+	mac_t result = 0;
+
+	// We expect that mac has a form of char[6]
+	for (int i = 0; i < MAC_SIZE; ++i) {
+		const uint8_t num = static_cast<uint8_t>(mac[i]);
+		result <<= 4u;
+		result = (result | num);
+	}
+
+	return result;
+}
+
+void MessagesMap::parseMacAddress(mac_t mac, char *destMac) {
+	const int MAC_SIZE = 6;
+
+	for (int i = MAC_SIZE - 1; i >= 0; --i) {
+		destMac[i] = (mac & 0xff);
+		mac >>= 4u;
+	}
 }

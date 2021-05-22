@@ -4,9 +4,10 @@
 #include <map>
 #include <cstdint>
 
-#include "../MessageLibrary/MessageLibrary.h"
+#include "../MessageManagerLibrary/MessageLibrary.h"
 
 class MessagesMap {
+public:
 	using mac_t = uint64_t; // We need 48 bits for the MAC address.
 	using id_t = uint32_t;
 	
@@ -25,8 +26,11 @@ public:
 	bool addMessage(const mac_t mac, const MessageType msgType, const id_t id);
 	bool addMessage(const char *mac, const MessageType msgType, const id_t id);
 
-private:
+public:
+	static mac_t parseMacAddressReadable(const char *mac);
+	// We assume that the length of the mac is 6 bytes.
 	static mac_t parseMacAddress(const char *mac);
+	static void parseMacAddress(mac_t mac, char *destMac);
 
 private:
 	container_t m_mapMacToRecord;
