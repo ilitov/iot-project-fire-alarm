@@ -29,7 +29,7 @@ protected:
 
 // Use two different callbacks depending on the type of the ESP(master/slave).
 template <typename Callback>
-class MessagesProcessor : MessagesProcessorBase {
+class MessagesProcessor : public MessagesProcessorBase {
 public:
 	MessagesProcessor(Callback &&callback);
 	MessagesProcessor(const MessagesProcessor &) = delete;
