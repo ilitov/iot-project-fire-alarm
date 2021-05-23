@@ -1,1 +1,2 @@
 Every library that is a subdirectory of ~/Documents/Arduino/libraries can be included directly in .ino files(ArduinoIDE).
+To link everything together, all .cpp and .h files must be in the same folder(which must be a subfolder of libraries/). 
