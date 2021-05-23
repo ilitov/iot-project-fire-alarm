@@ -5,6 +5,7 @@
 #include <condition_variable>
 
 #include "../MessageQueueLibrary/MessageQueueLibrary.h"
+#include "../MessagesProcessorCallbacks/MessagesCallbacks.h"
 
 // A class that manages the received messages in the master ESP.
 class MessagesProcessorBase {
@@ -30,43 +31,19 @@ private:
 template <typename Callback>
 class MessagesProcessor {
 public:
-	// Make it a template parameter(bigger executable, avoid templates)? Change its signature?
-	typedef void(*MessageCallback)(const Message &msg);
-
-	MessagesProcessor(Callback &&callback)
-		: m_callback(std::move(callback)) {
-
-	}
+	MessagesProcessor(Callback &&callback);
 	MessagesProcessor(const MessagesProcessor &) = delete;
 	MessagesProcessor& operator=(const MessagesProcessor &) = delete;
 	~MessagesProcessor() = default;
 
 	// This function runs on a separate thread?
-	void process() {
-		Message msg;
-		std::unique_lock<std::mutex> lock(m_mtx);
-
-		while (!m_terminated) { // lol
-			m_doWork.wait(lock);
-
-			// Stop if signaled.
-			if (m_terminated) {
-				return;
-			}
-
-			bool runs = false;
-			do {
-				runs = m_queue.pop(msg);
-
-				if (runs) {
-					m_callback(msg);
-				}
-			} while (runs);
-		}
-	}
+	void process();
 
 private:
 	Callback m_callback;
 };
+
+typedef MessagesProcessor<MasterCallback> MasterProcessor;
+typedef MessagesProcessor<SlaveCallback> SlaveProcessor;
 
 #endif // !_MESSAGES_PROCESSOR_MASTER
