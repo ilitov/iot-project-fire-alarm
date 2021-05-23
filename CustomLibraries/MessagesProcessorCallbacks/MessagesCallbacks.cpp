@@ -24,6 +24,8 @@ void MasterCallback::operator()(const Message &msg) {
 	default:
 		break;
 	}
+
+	Serial.println();
 }
 
 SlaveCallback::SlaveCallback(EspNowManager &espman)
@@ -33,7 +35,8 @@ SlaveCallback::SlaveCallback(EspNowManager &espman)
 
 void SlaveCallback::operator()(const Message &msg) {
 	if (m_espman) {
-		const MessageRaw &transmitMsg = prepareMessageForTransmission(msg);
-		m_espman->sendData(reinterpret_cast<const uint8_t*>(&transmitMsg), sizeof(transmitMsg));
+		MessageRaw transmitMsg{};
+		const int length = prepareMessageForTransmission(msg, transmitMsg);
+		m_espman->sendData(reinterpret_cast<const uint8_t*>(&transmitMsg), length);
 	}
 }
