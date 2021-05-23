@@ -19,7 +19,7 @@ public:
 	virtual void process() = 0;
 	void terminate();
 
-private:
+protected:
 	MessageQueue m_queue;
 
 	bool m_terminated;
@@ -29,7 +29,7 @@ private:
 
 // Use two different callbacks depending on the type of the ESP(master/slave).
 template <typename Callback>
-class MessagesProcessor {
+class MessagesProcessor : MessagesProcessorBase {
 public:
 	MessagesProcessor(Callback &&callback);
 	MessagesProcessor(const MessagesProcessor &) = delete;
