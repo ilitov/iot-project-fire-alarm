@@ -1,4 +1,5 @@
 #include "MessagesCallbacks.h"
+#include "../EspNowManagerLibrary/EspNowManager.h"
 
 void MasterCallback::operator()(const Message &msg) {
 	// TODO: Re-write this function.
