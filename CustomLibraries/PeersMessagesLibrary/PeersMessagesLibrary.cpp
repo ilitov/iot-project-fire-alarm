@@ -86,7 +86,7 @@ MessagesMap::mac_t MessagesMap::parseMacAddress(const unsigned char *mac) {
 	// We expect that mac has a form of char[6]
 	for (int i = 0; i < MAC_SIZE; ++i) {
 		const uint8_t num = static_cast<uint8_t>(mac[i]);
-		result <<= 4u;
+		result <<= 8u;
 		result = (result | num);
 	}
 
