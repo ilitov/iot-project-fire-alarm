@@ -113,7 +113,7 @@ esp_err_t EspNowManager::sendData(const uint8_t *data, size_t len) {
 	return err;
 }
 
-esp_err_t EspNowManager::addPeer(const char *macAddr) {
+esp_err_t EspNowManager::addPeer(const unsigned char *macAddr) {
 	if (!m_active) {
 		return ESP_ERR_ESPNOW_NOT_INIT;
 	}
@@ -126,7 +126,7 @@ esp_err_t EspNowManager::addPeer(const char *macAddr) {
 	return esp_now_add_peer(&peerInfo);
 }
 
-esp_err_t EspNowManager::removePeer(const char *macAddr) {
+esp_err_t EspNowManager::removePeer(const unsigned char *macAddr) {
 	if (!m_active) {
 		return ESP_ERR_ESPNOW_NOT_INIT;
 	}
@@ -135,7 +135,7 @@ esp_err_t EspNowManager::removePeer(const char *macAddr) {
 	return esp_now_del_peer(reinterpret_cast<const uint8_t*>(macAddr));
 }
 
-bool EspNowManager::hasPeer(const char *macAddr) const {
+bool EspNowManager::hasPeer(const unsigned char *macAddr) const {
 	if (!m_active) {
 		return false;
 	}

@@ -32,9 +32,9 @@ public:
 
 	// Note: This is a blocking call!
 	esp_err_t sendData(const uint8_t *data, size_t len);
-	esp_err_t addPeer(const char *macAddr);
-	esp_err_t removePeer(const char *macAddr);
-	bool hasPeer(const char *macAddr) const;
+	esp_err_t addPeer(const unsigned char *macAddr);
+	esp_err_t removePeer(const unsigned char *macAddr);
+	bool hasPeer(const unsigned char *macAddr) const;
 
 	// Don't call this function from multiple threads. It's NOT thread-safe!
 	// Use it to enqueue messages from the current ESP.

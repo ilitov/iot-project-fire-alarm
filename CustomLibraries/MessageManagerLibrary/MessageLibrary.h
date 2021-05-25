@@ -54,7 +54,7 @@ struct MessageRaw : MessageRawBase {
 // Use the data from MessageRaw to fill Message. 
 // This struct has a bigger size, but it would be easier to work with it throughout the code.
 struct Message {
-	char m_mac[6];			// MAC address of the original author
+	unsigned char m_mac[6];	// MAC address of the original author
 	MessageType m_msgType;	// type of message
 	AlarmType m_alarmStatus;// alarm status
 	uint32_t m_msgId;		// message sequential ID
@@ -75,5 +75,7 @@ struct Message {
 // Returns the length of the message.
 int prepareMessageForTransmission(const Message &msg, MessageRaw &result);
 Message getTransmittedMessage(const MessageRaw &msg);
+
+bool isAuthorizationMessage(MessageType type);
 
 #endif // !_MESSAGE_LIBRARY_

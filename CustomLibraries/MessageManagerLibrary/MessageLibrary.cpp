@@ -60,3 +60,7 @@ Message getTransmittedMessage(const MessageRaw &msg) {
 
 	return result;
 }
+
+bool isAuthorizationMessage(MessageType type) {
+	return type == MessageType::MSG_ANNOUNCE_NAME || type == MessageType::MSG_MASTER_ACK;
+}
