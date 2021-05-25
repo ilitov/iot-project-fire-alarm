@@ -7,9 +7,9 @@
 
 class EspNowManager;
 
-class MasterCallback {
+class MasterCallbackPeers {
 public:
-	MasterCallback(EspNowManager &espman);
+	MasterCallbackPeers(EspNowManager &espman);
 
 	void operator()(const Message &msg);
 
@@ -17,9 +17,19 @@ private:
 	EspNowManager *m_espman;
 };
 
-class SlaveCallback {
+class SlaveCallbackPeers {
 public:
-	SlaveCallback(EspNowManager &espman);
+	SlaveCallbackPeers(EspNowManager &espman);
+
+	void operator()(const Message &msg);
+
+private:
+	EspNowManager *m_espman;
+};
+
+class SlaveCallbackSelf {
+public:
+	SlaveCallbackSelf(EspNowManager &espman);
 
 	void operator()(const Message &msg);
 

@@ -14,8 +14,9 @@
 
 // A singleton class that manages the ESP-Now subsystem.
 class EspNowManager {
-	friend class MasterCallback;
-	friend class SlaveCallback;
+	friend class MasterCallbackPeers;
+	friend class SlaveCallbackPeers;
+	friend class SlaveCallbackSelf;
 
 public:
 	static const int MAX_PEERS = ESP_NOW_MAX_TOTAL_PEER_NUM;

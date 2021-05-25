@@ -43,7 +43,8 @@ private:
 	Callback m_callback;
 };
 
-typedef MessagesProcessor<MasterCallback> MasterProcessor;
-typedef MessagesProcessor<SlaveCallback> SlaveProcessor;
+typedef MessagesProcessor<MasterCallbackPeers> MasterProcessorPeers;
+typedef MessagesProcessor<SlaveCallbackPeers> SlaveProcessorPeers;
+typedef MessagesProcessor<SlaveCallbackSelf> SlaveProcessorSelf;
 
 #endif // !_MESSAGES_PROCESSOR_MASTER

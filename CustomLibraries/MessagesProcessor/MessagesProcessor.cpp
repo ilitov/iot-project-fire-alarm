@@ -62,5 +62,6 @@ void MessagesProcessor<Callback>::process() {
 	}
 }
 
-template class MessagesProcessor<MasterCallback>;
-template class MessagesProcessor<SlaveCallback>;
+template class MessagesProcessor<MasterCallbackPeers>;
+template class MessagesProcessor<SlaveCallbackPeers>;
+template class MessagesProcessor<SlaveCallbackSelf>;

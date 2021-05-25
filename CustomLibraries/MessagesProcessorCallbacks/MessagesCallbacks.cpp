@@ -1,12 +1,12 @@
 #include "MessagesCallbacks.h"
 #include "../EspNowManagerLibrary/EspNowManager.h"
 
-MasterCallback::MasterCallback(EspNowManager &espman)
+MasterCallbackPeers::MasterCallbackPeers(EspNowManager &espman)
 	: m_espman(&espman) {
 
 }
 
-void MasterCallback::operator()(const Message &msg) {
+void MasterCallbackPeers::operator()(const Message &msg) {
 	if (!m_espman) {
 		return;
 	}
@@ -97,12 +97,12 @@ void MasterCallback::operator()(const Message &msg) {
 	Serial.println();
 }
 
-SlaveCallback::SlaveCallback(EspNowManager &espman)
+SlaveCallbackPeers::SlaveCallbackPeers(EspNowManager &espman)
 	: m_espman(&espman) {
 
 }
 
-void SlaveCallback::operator()(const Message &msg) {
+void SlaveCallbackPeers::operator()(const Message &msg) {
 	if (!m_espman) {
 		return;
 	}
@@ -123,6 +123,21 @@ void SlaveCallback::operator()(const Message &msg) {
 		}
 	}
 	
+	MessageRaw transmitMsg{};
+	const int length = prepareMessageForTransmission(msg, transmitMsg);
+	m_espman->sendData(reinterpret_cast<const uint8_t*>(&transmitMsg), length);
+}
+
+SlaveCallbackSelf::SlaveCallbackSelf(EspNowManager &espman)
+	: m_espman(&espman) {
+
+}
+
+void SlaveCallbackSelf::operator()(const Message &msg) {
+	if (!m_espman) {
+		return;
+	}
+
 	MessageRaw transmitMsg{};
 	const int length = prepareMessageForTransmission(msg, transmitMsg);
 	m_espman->sendData(reinterpret_cast<const uint8_t*>(&transmitMsg), length);
