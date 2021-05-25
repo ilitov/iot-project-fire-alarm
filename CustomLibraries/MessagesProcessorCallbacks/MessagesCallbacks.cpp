@@ -31,15 +31,15 @@ void MasterCallback::operator()(const Message &msg) {
 			}
 
 			// Send MASTER_ACK message to the slaves.
-			Message msg;
-			MessagesMap::parseMacAddress(m_espman->m_myMAC, msg.m_mac);
-			msg.m_msgType = MessageType::MSG_MASTER_ACK;
-			msg.m_msgId = 0; // doesn't matter as authorization messages are not being saved in the messages map
-			msg.m_alarmStatus = AlarmType::ALARM_NO_SMOKE_OFF; // doesn't matter as well
+			Message replyMessage;
+			MessagesMap::parseMacAddress(m_espman->m_myMAC, replyMessage.m_mac);
+			replyMessage.m_msgType = MessageType::MSG_MASTER_ACK;
+			replyMessage.m_msgId = 0; // doesn't matter as authorization messages are not being saved in the messages map
+			replyMessage.m_alarmStatus = AlarmType::ALARM_NO_SMOKE_OFF; // doesn't matter as well
 				
 
 			MessageRaw transmitMsg{};
-			const int length = prepareMessageForTransmission(msg, transmitMsg);
+			const int length = prepareMessageForTransmission(replyMessage, transmitMsg);
 			m_espman->sendData(reinterpret_cast<const uint8_t*>(&transmitMsg), length);
 		}
 	}
@@ -65,6 +65,9 @@ void MasterCallback::operator()(const Message &msg) {
 		break;
 	case MessageType::MSG_STOP_ALARM:
 		Serial.println("MSG_SENSOR_DATA");
+		break;
+	case MessageType::MSG_MASTER_ACK:
+		Serial.println("MSG_MASTER_ACK");
 		break;
 	default:
 		break;
