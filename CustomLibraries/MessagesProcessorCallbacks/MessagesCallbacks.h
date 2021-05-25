@@ -9,7 +9,12 @@ class EspNowManager;
 
 class MasterCallback {
 public:
+	MasterCallback(EspNowManager &espman);
+
 	void operator()(const Message &msg);
+
+private:
+	EspNowManager *m_espman;
 };
 
 class SlaveCallback {
