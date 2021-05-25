@@ -7,7 +7,8 @@ EspNowManager::EspNowManager()
 	, m_active(false)
 	, m_canSendData(true)
 	, m_peersMessagesProcessor(NULL)
-	, m_myMessagesProcessor(NULL) {
+	, m_myMessagesProcessor(NULL)
+	, m_masterAcknowledged(false) {
 
 }
 
@@ -34,7 +35,7 @@ EspNowManager& EspNowManager::instance() {
 	return espNowInstance;
 }
 
-bool EspNowManager::init(MessagesProcessorBase *peersmp, MessagesProcessorBase *mymp, uint8_t channel, const char *myMAC) {
+bool EspNowManager::init(MessagesProcessorBase *peersmp, MessagesProcessorBase *mymp, uint8_t channel, bool isMasterESP, const char *myMAC) {
 	if (m_active) {
 		return false;
 	}
@@ -54,11 +55,37 @@ bool EspNowManager::init(MessagesProcessorBase *peersmp, MessagesProcessorBase *
 		return false;
 	}
 
+	if (peersmp == mymp) {
+		Serial.println("Peers processor must be different from my messages processor! You can use the same class, but there must be 2 instances!");
+		return false;
+	}
+
 	m_peerChannel = channel;
 	m_active = true;
 	m_myMAC = MessagesMap::parseMacAddressReadable(myMAC);
+	
+	// Do not wait for master if I am the master.
+	if (isMasterESP) {
+		m_masterAcknowledged.store(std::memory_order_release);
+	}
+	
 	m_peersMessagesProcessor = peersmp;
+	if (m_peersMessagesProcessor) {
+
+		// TODO: Update the queues from the main thread at a given interval.
+		if (!m_messageTasks.push(m_peersMessagesProcessor)) {
+			Serial.println("Could not start the task which processes peer messages!");
+		}
+	}
+
 	m_myMessagesProcessor = mymp;
+	if (m_myMessagesProcessor) {
+
+		// TODO: Update the queues from the main thread at a given interval.
+		if (!m_messageTasks.push(m_myMessagesProcessor)) {
+			Serial.println("Could not start the task which processes my messages!");
+		}
+	}
 
 	return true;
 }
@@ -73,11 +100,12 @@ esp_err_t EspNowManager::sendData(const uint8_t *data, size_t len) {
 	
 	// NULL means broadcast to all registered peers.
 	esp_err_t err = m_active ? esp_now_send(NULL, data, len) : ESP_ERR_ESPNOW_NOT_INIT;
-	
-	// We don't need the lock anymore.
-	lock.unlock();
 
 	if (err != ESP_OK) {
+		// Reset the flag(sendCallback will reset it on success) and unlock.
+		m_canSendData = true;
+		lock.unlock();
+
 		Serial.print("Sending data failed with: ");
 		Serial.println(esp_err_to_name(err));
 	}
@@ -90,7 +118,7 @@ esp_err_t EspNowManager::addPeer(const char *macAddr) {
 		return ESP_ERR_ESPNOW_NOT_INIT;
 	}
 
-	esp_now_peer_info_t peerInfo;
+	esp_now_peer_info_t peerInfo{};
 	std::memcpy(peerInfo.peer_addr, reinterpret_cast<const uint8_t*>(macAddr), ESP_NOW_ETH_ALEN);
 	peerInfo.channel = m_peerChannel;
 	peerInfo.encrypt = false;
@@ -112,7 +140,7 @@ bool EspNowManager::hasPeer(const char *macAddr) const {
 		return false;
 	}
 
-	esp_now_peer_info_t peer;
+	esp_now_peer_info_t peer{};
 	esp_err_t err = esp_now_get_peer(reinterpret_cast<const  uint8_t*>(macAddr), &peer);
 
 	return err != ESP_ERR_ESPNOW_NOT_FOUND;
@@ -148,9 +176,11 @@ void EspNowManager::receiveCallback(const uint8_t *macAddr, const uint8_t *data,
 		return;
 	}
 
+	const bool isAuthorization = isAuthorizationMessage(message.m_msgType);
 	const bool isNewMessage = true;
-	if(!espMan.m_iAmMaster && isNewMessage != espMan.m_mapMessages.addMessage(mac, message.m_msgType, message.m_msgId)) {
-		// The slave has already seen this message.
+
+	if(!isAuthorization && isNewMessage != espMan.m_mapMessages.addMessage(mac, message.m_msgType, message.m_msgId)) {
+		// The slave has already seen this message. And it is not related to authorization to/from master ESP.
 		return;
 	}
 
@@ -164,7 +194,12 @@ void EspNowManager::receiveCallback(const uint8_t *macAddr, const uint8_t *data,
 void EspNowManager::sendCallback(const uint8_t *macAddr, esp_now_send_status_t status) {
 	// TODO: Do something in case of a failure(log a command in a queue?).
 	if (status == ESP_NOW_SEND_FAIL) {
-		// pass
+		Serial.print("Sending data to MAC: ");
+		for (int i = 0; i < ESP_NOW_ETH_ALEN; ++i) {
+			Serial.print(macAddr[i], HEX);
+			Serial.print(':');
+		}
+		Serial.println(" failed!");
 	}
 
 	EspNowManager &espMan = instance();
@@ -176,4 +211,8 @@ void EspNowManager::sendCallback(const uint8_t *macAddr, esp_now_send_status_t s
 	}
 
 	espMan.m_sendCV.notify_one();
+}
+
+bool EspNowManager::isMasterAcknowledged() const {
+	return m_masterAcknowledged.load(std::memory_order_acquire);
 }

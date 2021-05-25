@@ -24,13 +24,18 @@ public:
 	// true - added/updated the message -> broadcast message
 	// false - the message is outdated -> ignore message
 	bool addMessage(const mac_t mac, const MessageType msgType, const id_t id);
-	bool addMessage(const char *mac, const MessageType msgType, const id_t id);
+	bool addMessage(const unsigned char *mac, const MessageType msgType, const id_t id);
+
+	bool eraseLogForMacAddress(const mac_t mac);
+	bool eraseLogForMacAddress(const unsigned char *mac);
 
 public:
 	static mac_t parseMacAddressReadable(const char *mac);
+	static void parseMacAddressReadable(const char *mac, unsigned char *destMac);
+
 	// We assume that the length of the mac is 6 bytes.
-	static mac_t parseMacAddress(const char *mac);
-	static void parseMacAddress(mac_t mac, char *destMac);
+	static mac_t parseMacAddress(const unsigned char *mac);
+	static void parseMacAddress(mac_t mac, unsigned char *destMac);
 
 private:
 	container_t m_mapMacToRecord;

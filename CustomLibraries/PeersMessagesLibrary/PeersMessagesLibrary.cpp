@@ -31,14 +31,23 @@ bool MessagesMap::addMessage(const mac_t mac, const MessageType msgType, const i
 	return updatedRecord;
 }
 
-bool MessagesMap::addMessage(const char *mac, const MessageType msgType, const id_t id) {
-	mac_t iMac = mac ? parseMacAddress(mac) : 0;
+bool MessagesMap::addMessage(const unsigned char *mac, const MessageType msgType, const id_t id) {
+	const mac_t iMac = mac ? parseMacAddress(mac) : 0;
 
 	if (iMac == 0) {
 		return false;
 	}
 
 	return addMessage(iMac, msgType, id);
+}
+
+bool MessagesMap::eraseLogForMacAddress(const mac_t mac) {
+	return 0 != m_mapMacToRecord.erase(mac);
+}
+
+bool MessagesMap::eraseLogForMacAddress(const unsigned char *mac) {
+	const mac_t iMac = mac ? parseMacAddress(mac) : 0;
+	return eraseLogForMacAddress(iMac);
 }
 
 MessagesMap::mac_t MessagesMap::parseMacAddressReadable(const char *mac) {
@@ -65,7 +74,12 @@ MessagesMap::mac_t MessagesMap::parseMacAddressReadable(const char *mac) {
 	return readHalfBytes == 2 * MAC_SIZE ? result : 0;
 }
 
-MessagesMap::mac_t MessagesMap::parseMacAddress(const char *mac) {
+void MessagesMap::parseMacAddressReadable(const char *mac, unsigned char *destMac) {
+	const mac_t result = parseMacAddressReadable(mac);
+	parseMacAddress(result, destMac);
+}
+
+MessagesMap::mac_t MessagesMap::parseMacAddress(const unsigned char *mac) {
 	const int MAC_SIZE = 6;
 	mac_t result = 0;
 
@@ -79,11 +93,11 @@ MessagesMap::mac_t MessagesMap::parseMacAddress(const char *mac) {
 	return result;
 }
 
-void MessagesMap::parseMacAddress(mac_t mac, char *destMac) {
+void MessagesMap::parseMacAddress(mac_t mac, unsigned char *destMac) {
 	const int MAC_SIZE = 6;
 
 	for (int i = MAC_SIZE - 1; i >= 0; --i) {
 		destMac[i] = (mac & 0xff);
-		mac >>= 4u;
+		mac >>= 8u;
 	}
 }

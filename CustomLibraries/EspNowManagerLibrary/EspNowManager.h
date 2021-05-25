@@ -10,9 +10,13 @@
 
 #include "../PeersMessagesLibrary/PeersMessagesLibrary.h"
 #include "../MessagesProcessor/MessagesProcessor.h"
+#include "../MessagesTaskRunnerLibrary/MessagesTaskRunner.h"
 
 // A singleton class that manages the ESP-Now subsystem.
 class EspNowManager {
+	friend class MasterCallback;
+	friend class SlaveCallback;
+
 public:
 	static const int MAX_PEERS = ESP_NOW_MAX_TOTAL_PEER_NUM;
 	static const int MAX_PEERS_ENCRYPT = ESP_NOW_MAX_ENCRYPT_PEER_NUM;
@@ -24,7 +28,7 @@ public:
 
 	static EspNowManager& instance();
 
-	bool init(MessagesProcessorBase *peersmp, MessagesProcessorBase *mymp, uint8_t channel, const char *myMAC);
+	bool init(MessagesProcessorBase *peersmp, MessagesProcessorBase *mymp, uint8_t channel, bool isMasterESP, const char *myMAC);
 
 	// Note: This is a blocking call!
 	esp_err_t sendData(const uint8_t *data, size_t len);
@@ -40,6 +44,8 @@ public:
 	static void receiveCallback(const uint8_t *macAddr, const uint8_t *data, int dataLength);
 	static void sendCallback(const uint8_t *macAddr, esp_now_send_status_t status);
 
+	bool isMasterAcknowledged() const;
+
 private:
 	EspNowManager();
 
@@ -50,8 +56,6 @@ private:
 
 	// Whether the esp-now protocol is ready.
 	bool m_active;
-
-	bool m_iAmMaster;
 	
 	// Make sendData() sequential in order not to overflow the underlying protocol.
 	bool m_canSendData;
@@ -59,6 +63,9 @@ private:
 	std::condition_variable m_sendCV;
 	
 	MessagesMap m_mapMessages;
+
+	// Container with threads which process the messages.
+	MessagesTaskRunner m_messageTasks;
 
 	// Process the messages that come from the peers.
 	MessagesProcessorBase *m_peersMessagesProcessor;
@@ -68,6 +75,9 @@ private:
 
 	// The MAC address of the current ESP.
 	MessagesMap::mac_t m_myMAC;
+
+	// Whether there is a master ESP which knows about us.
+	std::atomic<bool> m_masterAcknowledged;
 };
 
 #endif // !_ESPNOW_MANAGER_LIBRARY_
