@@ -18,16 +18,13 @@ void MasterCallbackPeers::operator()(const Message &msg) {
 		if (msg.m_msgType == MessageType::MSG_ANNOUNCE_NAME) {
 			m_espman->m_mapMessages.eraseLogForMacAddress(msg.m_mac);
 
-			// Store data(mac - name) about the new ESP...
-
 			// Add the ESP as a peer.
 			// This call can fail if we have no space for peers, but we hope that at least someone will add it as a peer
 			// and the message will be delivered eventually.
 			if (ESP_OK != m_espman->addPeer(msg.m_mac)) {
 				Serial.println("Could not add a new peer in the master(MessageType::MSG_ANNOUNCE_NAME).");
 
-				// TODO: Check for inactive peers and delete those of them who are inactive.
-				//		 That way we will free space for new peers.
+				// Note: addPeer() checks for inactive peers and deletes those of them which are inactive.
 			}
 
 			// Send MASTER_ACK message to the slaves.
@@ -42,9 +39,18 @@ void MasterCallbackPeers::operator()(const Message &msg) {
 			const int length = prepareMessageForTransmission(replyMessage, transmitMsg);
 			m_espman->sendData(reinterpret_cast<const uint8_t*>(&transmitMsg), length);
 		}
+		else if (msg.m_msgType == MessageType::MSG_MASTER_ACK) {
+			Serial.print(__FILE__);
+			Serial.print(' ');
+			Serial.print(__LINE__);
+			Serial.print(' ');
+			Serial.println("This should never hepen with a single master ESP!");
+		}
+
+		return;
 	}
 
-	// TODO: Re-write this function.
+	// TODO: Re-write this function to do something meaningful.
 
 	Serial.println("Sending a message to MQTT server:");
 	Serial.print("Message author: ");
@@ -108,21 +114,23 @@ void SlaveCallbackPeers::operator()(const Message &msg) {
 	}
 
 	if (isAuthorizationMessage(msg.m_msgType)) {
+		
+		// There is a new ESP in the mesh.
 		if (msg.m_msgType == MessageType::MSG_ANNOUNCE_NAME) {
+			// Clean any data related to it in my message mapping.
 			m_espman->m_mapMessages.eraseLogForMacAddress(msg.m_mac);
 
-			// Add the ESP as a peer.
-			if (ESP_OK != m_espman->addPeer(msg.m_mac)) {
-				// TODO: Check for inactive peers and delete those of them who are inactive.
-				//		 That way we will free space for new peers.
-			}
+			// Add it to my list of peers.
+			m_espman->addPeer(msg.m_mac);
 		}
-		// Notify the slave that the master has seen its presence.
 		else if (msg.m_msgType == MessageType::MSG_MASTER_ACK) {
+			// Notify the slave that the master has seen its presence.
 			m_espman->m_masterAcknowledged.store(true, std::memory_order_release);
 		}
+
 	}
 	
+	// Broadcast every received peer message(because I am a slave). 
 	MessageRaw transmitMsg{};
 	const int length = prepareMessageForTransmission(msg, transmitMsg);
 	m_espman->sendData(reinterpret_cast<const uint8_t*>(&transmitMsg), length);
@@ -138,6 +146,7 @@ void SlaveCallbackSelf::operator()(const Message &msg) {
 		return;
 	}
 
+	// Just send my message to my peers.
 	MessageRaw transmitMsg{};
 	const int length = prepareMessageForTransmission(msg, transmitMsg);
 	m_espman->sendData(reinterpret_cast<const uint8_t*>(&transmitMsg), length);

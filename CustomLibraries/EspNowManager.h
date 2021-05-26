@@ -11,6 +11,7 @@
 #include "PeersMessagesLibrary.h"
 #include "MessagesProcessor.h"
 #include "MessagesTaskRunner.h"
+#include "PeersTimeoutWatch.h"
 
 // A singleton class that manages the ESP-Now subsystem.
 class EspNowManager {
@@ -79,6 +80,9 @@ private:
 
 	// Whether there is a master ESP which knows about us.
 	std::atomic<bool> m_masterAcknowledged;
+
+	// Manage the list of inactive peers.
+	PeersTimeoutWatch m_peersTimeoutWatch;
 };
 
 #endif // !_ESPNOW_MANAGER_LIBRARY_

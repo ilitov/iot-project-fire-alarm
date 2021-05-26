@@ -8,7 +8,8 @@ EspNowManager::EspNowManager()
 	, m_canSendData(true)
 	, m_peersMessagesProcessor(NULL)
 	, m_myMessagesProcessor(NULL)
-	, m_masterAcknowledged(false) {
+	, m_masterAcknowledged(false)
+	, m_peersTimeoutWatch(2 * 60 * 1000 /*2 mins*/) {
 
 }
 
@@ -118,12 +119,20 @@ esp_err_t EspNowManager::addPeer(const unsigned char *macAddr) {
 		return ESP_ERR_ESPNOW_NOT_INIT;
 	}
 
+	// Check if we can free some space.
+	m_peersTimeoutWatch.cleanPeers(*this, millis());
+
 	esp_now_peer_info_t peerInfo{};
 	std::memcpy(peerInfo.peer_addr, reinterpret_cast<const uint8_t*>(macAddr), ESP_NOW_ETH_ALEN);
 	peerInfo.channel = m_peerChannel;
 	peerInfo.encrypt = false;
 
-	return esp_now_add_peer(&peerInfo);
+	esp_err_t err = esp_now_add_peer(&peerInfo);
+	if (err == ESP_OK) {
+		m_peersTimeoutWatch.addPeer(MessagesMap::parseMacAddress(macAddr), millis());
+	}
+
+	return err;
 }
 
 esp_err_t EspNowManager::removePeer(const unsigned char *macAddr) {
@@ -179,9 +188,14 @@ void EspNowManager::receiveCallback(const uint8_t *macAddr, const uint8_t *data,
 	const bool isAuthorization = isAuthorizationMessage(message.m_msgType);
 	const bool isNewMessage = true;
 
-	if(!isAuthorization && isNewMessage != espMan.m_mapMessages.addMessage(mac, message.m_msgType, message.m_msgId)) {
-		// The slave has already seen this message. And it is not related to authorization to/from master ESP.
-		return;
+	if(!isAuthorization){
+		if (isNewMessage != espMan.m_mapMessages.addMessage(mac, message.m_msgType, message.m_msgId)) {
+			// The slave has already seen this message. And it is not related to authorization to/from master ESP.
+			return;
+		}
+
+		// Update the timeout of the given peer.
+		espMan.m_peersTimeoutWatch.updatePeer(mac, millis());
 	}
 
 	// Push the message to a queue(which another thread processes) in order to be retransmitted with sendData()
@@ -200,6 +214,14 @@ void EspNowManager::sendCallback(const uint8_t *macAddr, esp_now_send_status_t s
 			Serial.print(':');
 		}
 		Serial.println(" failed!");
+	}
+	else {
+		Serial.print("Sending data to MAC: ");
+		for (int i = 0; i < ESP_NOW_ETH_ALEN; ++i) {
+			Serial.print(macAddr[i], HEX);
+			Serial.print(':');
+		}
+		Serial.println(" succeeded!");
 	}
 
 	EspNowManager &espMan = instance();
