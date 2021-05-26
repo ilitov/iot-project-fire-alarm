@@ -1,4 +1,5 @@
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include "EspNowManager.h"
 
 const unsigned char MasterMAC[6] = {0x9C,0x9C,0x1F,0xCA,0xFD,0x7C}; 
@@ -15,13 +16,21 @@ void setup() {
   Serial.begin(115200);
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
-
-  //uint32_t wifiChannel = WiFi.channel();
-  uint32_t wifiChannel = 0;
+  
+  uint32_t wifiChannel = 2;
   Serial.print("WiFi channel: ");
   Serial.println(wifiChannel);
+
+  // Set the value of @wifiChannel to the channel of the master. This gives us extra robustness, otherwise there are send failures from time to time.
+  ESP_ERROR_CHECK(esp_wifi_set_promiscuous(true));
+  if(ESP_OK != esp_wifi_set_channel(wifiChannel, WIFI_SECOND_CHAN_NONE )){
+    Serial.println("Failed to set up the channel.");
+    esp_restart();
+  }
+  ESP_ERROR_CHECK(esp_wifi_set_promiscuous(false));
   
   if(false == espman.init(&peerMessagesProcessor, &myMessagesProcessor, wifiChannel, isMaster, WiFi.macAddress().c_str())){
+    Serial.println("Failed to init ESP-NOW, restarting!");
     esp_restart();
   }
 
@@ -87,5 +96,5 @@ void sendSensorData(){
 void loop() {
   Serial.println("Sending sensor data...");
   sendSensorData();
-  delay(10000);
+  delay(5000);
 }
