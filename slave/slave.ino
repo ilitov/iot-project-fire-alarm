@@ -41,18 +41,22 @@ void setup() {
 void authorizeMyselfToMaster(const char *name, int length){
   const unsigned long beginTime = millis();
   const unsigned long timeout = 60 * 1000; // 60 sec
+  const unsigned long delayms = 1000;
 
+  Message msg{};
+  MessagesMap::parseMacAddressReadable(WiFi.macAddress().c_str(), msg.m_mac);
+  memcpy(msg.m_data.name, name, length);
+  msg.m_msgId = 0;
+  msg.m_msgType = MessageType::MSG_ANNOUNCE_NAME;
+    
   while(!espman.isMasterAcknowledged() && millis() - beginTime < timeout){
-    Message msg{};
-    MessagesMap::parseMacAddressReadable(WiFi.macAddress().c_str(), msg.m_mac);
-    memcpy(msg.m_data.name, name, length);
-    msg.m_msgId = 0;
-    msg.m_msgType = MessageType::MSG_ANNOUNCE_NAME;
-
     Serial.println("Connecting to master...");
     
     espman.enqueueSendDataAsync(msg);
-    delay(1000); // delay 1 sec
+    Serial.print("Delay ");
+    Serial.print(delayms / 1000.f);
+    Serial.println(" sec.");
+    delay(delayms);
   }
 
   if(!espman.isMasterAcknowledged()){
@@ -83,5 +87,5 @@ void sendSensorData(){
 void loop() {
   Serial.println("Sending sensor data...");
   sendSensorData();
-  delay(5000);
+  delay(10000);
 }
