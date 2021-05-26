@@ -4,7 +4,7 @@
 #include <map>
 #include <cstdint>
 
-#include "../MessageManagerLibrary/MessageLibrary.h"
+#include "MessageLibrary.h"
 
 class MessagesMap {
 public:

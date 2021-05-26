@@ -4,8 +4,8 @@
 #include <mutex>
 #include <condition_variable>
 
-#include "../MessageQueueLibrary/MessageQueueLibrary.h"
-#include "../MessagesProcessorCallbacks/MessagesCallbacks.h"
+#include "MessageQueueLibrary.h"
+#include "MessagesCallbacks.h"
 
 // A class that manages the received messages in the master ESP.
 class MessagesProcessorBase {

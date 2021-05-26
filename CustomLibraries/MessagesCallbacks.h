@@ -3,7 +3,7 @@
 
 #include <HardwareSerial.h>
 
-#include "../MessageManagerLibrary/MessageLibrary.h"
+#include "MessageLibrary.h"
 
 class EspNowManager;
 

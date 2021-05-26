@@ -1,5 +1,5 @@
 #include "MessagesCallbacks.h"
-#include "../EspNowManagerLibrary/EspNowManager.h"
+#include "EspNowManager.h"
 
 MasterCallbackPeers::MasterCallbackPeers(EspNowManager &espman)
 	: m_espman(&espman) {

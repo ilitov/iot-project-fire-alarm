@@ -4,7 +4,7 @@
 #include <array>
 #include <thread>
 
-#include "../MessagesProcessor/MessagesProcessor.h"
+#include "MessagesProcessor.h"
 
 class MessagesTaskRunner {
 public:

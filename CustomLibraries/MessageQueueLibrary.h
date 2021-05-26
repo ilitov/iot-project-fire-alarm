@@ -3,7 +3,7 @@
 
 #include <atomic>
 
-#include "../MessageManagerLibrary/MessageLibrary.h"
+#include "MessageLibrary.h"
 
 // Lock-free queue that supports 1 reader and 1 writer.
 class MessageQueue {

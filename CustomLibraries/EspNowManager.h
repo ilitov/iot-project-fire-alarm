@@ -8,9 +8,9 @@
 #include <mutex>
 #include <condition_variable>
 
-#include "../PeersMessagesLibrary/PeersMessagesLibrary.h"
-#include "../MessagesProcessor/MessagesProcessor.h"
-#include "../MessagesTaskRunnerLibrary/MessagesTaskRunner.h"
+#include "PeersMessagesLibrary.h"
+#include "MessagesProcessor.h"
+#include "MessagesTaskRunner.h"
 
 // A singleton class that manages the ESP-Now subsystem.
 class EspNowManager {
