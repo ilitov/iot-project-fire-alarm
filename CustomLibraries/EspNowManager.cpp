@@ -215,14 +215,14 @@ void EspNowManager::sendCallback(const uint8_t *macAddr, esp_now_send_status_t s
 		}
 		Serial.println(" failed!");
 	}
-	else {
+	/*else { // For debug purposes.
 		Serial.print("Sending data to MAC: ");
 		for (int i = 0; i < ESP_NOW_ETH_ALEN; ++i) {
 			Serial.print(macAddr[i], HEX);
 			Serial.print(':');
 		}
 		Serial.println(" succeeded!");
-	}
+	}*/
 
 	EspNowManager &espMan = instance();
 

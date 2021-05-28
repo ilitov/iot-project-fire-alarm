@@ -40,7 +40,7 @@ static void decodeMessageRawData(Message &result, const MessageRaw &msg) {
 
 int prepareMessageForTransmission(const Message &msg, MessageRaw &result) {
 	
-	std::memcpy(result.m_mac, msg.m_mac, sizeof(msg.m_mac) * sizeof(msg.m_mac[0]));
+	std::memcpy(result.m_mac, msg.m_mac, sizeof(msg.m_mac));
 	result.m_msgType = static_cast<uint8_t>(msg.m_msgType);
 	result.m_alarmStatus = static_cast<uint8_t>(msg.m_alarmStatus);
 	result.m_msgId = msg.m_msgId;
@@ -51,7 +51,7 @@ int prepareMessageForTransmission(const Message &msg, MessageRaw &result) {
 Message getTransmittedMessage(const MessageRaw &msg) {
 	Message result{};
 
-	std::memcpy(result.m_mac, msg.m_mac, sizeof(msg.m_mac) * sizeof(msg.m_mac[0]));
+	std::memcpy(result.m_mac, msg.m_mac, sizeof(msg.m_mac));
 	result.m_msgType = static_cast<MessageType>(msg.m_msgType);
 	result.m_alarmStatus = static_cast<AlarmType>(msg.m_alarmStatus);
 	result.m_msgId = msg.m_msgId;

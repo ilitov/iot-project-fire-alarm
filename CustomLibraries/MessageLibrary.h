@@ -5,7 +5,7 @@
 
 #define myMax(a, b) (a) < (b) ? (b) : (a)
 
-static const int MAX_LEN_ESP_NAME = 32;
+static const int MAX_LEN_ESP_NAME = 33;
 static const int LEN_ESP_MAC_ADDRESS = 6;
 
 enum class MessageType {
