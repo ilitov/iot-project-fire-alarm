@@ -4,6 +4,7 @@
 
 #include "EspNowManager.h"
 #include "EspSettings.h"
+#include "LEDBlink.h"
 
 const unsigned char SlaveMAC[6] = {0x7C,0x9E,0xBD,0xED,0x95,0xF4}; 
 const bool isMaster = true;
@@ -17,7 +18,6 @@ void setupWiFi(){
   WiFi.disconnect();
   WiFi.mode(WIFI_STA);
   WiFi.beginSmartConfig();
-  //WiFi.begin("MY_WIF_SSID", "PASSWORD");
 
   // Configure the access to WiFi from the smartphone(app: EspTouch: SmartConfig)
   Serial.println("Waiting for SmartConfig.");
@@ -60,6 +60,9 @@ void setupWiFi(){
 void setup() {
   Serial.begin(115200);
 
+  LEDBlink setupLED(2); // LED pin = 2
+  setupLED.start();
+  
   // Setup the file system and ESP settings.
   if(!espSettings.setup()){
     esp_restart();
@@ -75,6 +78,11 @@ void setup() {
     Serial.println("Failed to init ESP-NOW, restarting!");
     esp_restart();
   }
+
+  // Stop the LED.
+  setupLED.stop();
+
+  Serial.println("setup() completed.");
 }
 
 void loop() {

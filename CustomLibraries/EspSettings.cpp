@@ -241,6 +241,8 @@ void ESPSettings::setupUserSettings() {
 
 	webServer.close();
 	Serial.println("Settings server stopped.");
-
-	WiFi.softAPdisconnect(true);
+	
+	if (!WiFi.softAPdisconnect(false)) {
+		Serial.println("Failed to disconnect softAP!");
+	}
 }
