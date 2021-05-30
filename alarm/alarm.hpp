@@ -2,8 +2,8 @@
 #define ALARM_HEADER_INCLUDED
 
 #include <thread>
-#include <atomic>
 #include <condition_variable>
+#include <atomic>
 
 class Alarm
 {
@@ -12,51 +12,39 @@ class Alarm
     {
       ledcSetup(CHANNEL, INITIAL_FREQUENCY, INITIAL_RESOLUTION);
       ledcAttachPin(pin, CHANNEL);
-
-      m_thread = std::thread(&Alarm::threadFunction, this);
     }
 
     ~Alarm()
     {
-      m_state = State::KILLED;
-      m_condVar.notify_one();
-      m_thread.join();
+      if (m_isActive == true)
+      {
+        m_isActive = false;
+        m_thread.join();
+      }
     }
 
     void activate()
     {
-      m_state = State::ACTIVATED;
-      m_condVar.notify_one();
+      m_isActive = true;
+      m_thread = std::thread(&Alarm::threadFunction, this);
     }
 
     void deactivate()
     {
-      m_state = State::DEACTIVATED;
+      m_isActive = false;
+      m_thread.join();
     }
 
   private:
 
-    enum class State
-    {
-      ACTIVATED = 0,
-      DEACTIVATED,
-      KILLED
-    };
-
     void threadFunction()
     {
-      while(m_state != State::KILLED)
+      while(m_isActive)
       {
-        std::unique_lock<std::mutex> lock(m_mutex);
-        m_condVar.wait(lock, [this] { return m_state != State::DEACTIVATED; });
-
-        while(m_state == State::ACTIVATED)
-        {
-          ledcWriteTone(CHANNEL, TRIGGER_FREQUENCY);
-          delay(DELAY_TIME_MS);
-          ledcWriteTone(CHANNEL, INITIAL_FREQUENCY);
-          delay(DELAY_TIME_MS);
-        }
+        ledcWriteTone(CHANNEL, TRIGGER_FREQUENCY);
+        delay(DELAY_TIME_MS);
+        ledcWriteTone(CHANNEL, INITIAL_FREQUENCY);
+        delay(DELAY_TIME_MS);
       }
     }
   
@@ -67,9 +55,7 @@ class Alarm
     const int DELAY_TIME_MS = 1000;
 
     std::thread m_thread;
-    std::mutex m_mutex;
-    std::condition_variable m_condVar;
-    std::atomic<State> m_state {State::DEACTIVATED};
+    std::atomic_bool m_isActive {false};
 };
 
 #endif // ALARM_HEADER_INCLUDED
