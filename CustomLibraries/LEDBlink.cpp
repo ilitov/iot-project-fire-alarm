@@ -11,10 +11,6 @@ LEDBlink::LEDBlink(int LEDPin, int delay)
 
 LEDBlink::~LEDBlink() {
 	stop();
-
-	if (m_thread.joinable()) {
-		m_thread.join();
-	}
 }
 
 void LEDBlink::start() {
@@ -32,4 +28,8 @@ void LEDBlink::start() {
 
 void LEDBlink::stop() {
 	m_run.clear();
+
+	if (m_thread.joinable()) {
+		m_thread.join();
+	}
 }
