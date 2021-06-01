@@ -24,7 +24,8 @@ public:
 	bool setESPNetworkKey(const char *name);
 	bool setESPNowChannel(uint32_t channel);
 
-	void updateSettings();
+	bool updateSettings();
+	bool deleteSettings();
 	void setupUserSettings();
 
 	const char* getESPName() const { return m_espName; }

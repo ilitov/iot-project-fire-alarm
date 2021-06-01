@@ -1,4 +1,5 @@
 #include "EspSettings.h"
+#include "Timer.h"
 #include <esp_wifi.h>
 #include <HardwareSerial.h>
 #include <SPIFFS.h>
@@ -31,6 +32,7 @@ bool ESPSettings::setup() {
 	}
 
 	if (existSettingsFile()) {
+		Serial.println("There is a file with settings in the memory.");
 		loadSettingsFromFile();
 	}
 
@@ -122,8 +124,12 @@ bool ESPSettings::setESPNowChannel(uint32_t channel) {
 	return true;
 }
 
-void ESPSettings::updateSettings() {
-	saveSettingsToFile();
+bool ESPSettings::updateSettings() {
+	return saveSettingsToFile();
+}
+
+bool ESPSettings::deleteSettings() {
+	return SPIFFS.remove(SettingsFileName);
 }
 
 void ESPSettings::setupUserSettings() {
@@ -135,6 +141,7 @@ void ESPSettings::setupUserSettings() {
 
 	bool settingsReady = false;
 	const bool hasSettings = existSettingsFile() && loadSettingsFromFile();
+	bool passwordReady = hasSettings;
 
 	static const unsigned long settingsTimeout = 2 * 60 * 1000; // 2 mins
 
@@ -182,40 +189,61 @@ void ESPSettings::setupUserSettings() {
 	});
 
 	webServer.on("/set", HTTP_POST, [&]() {
+		String response;
+
 		if (webServer.hasArg("esp_name")) {
 			const String &espname = webServer.arg("esp_name");
 
 			Serial.print("ESP name: ");
 			Serial.println(espname);
 
-			setESPName(espname.c_str());
+			if (espname.length() > 0) {
+				setESPName(espname.c_str());
+				response += "<p>ESP name has been updated.</p>";
+			}
 		}
 
 		if (webServer.hasArg("network_name")) {
 			const String &networkName = webServer.arg("network_name");
 
-			Serial.print("Network key: ");
+			Serial.print("Network name: ");
 			Serial.println(networkName);
 
-			setESPNetworkName(networkName.c_str());
+			if (networkName.length() > 0) {
+				setESPNetworkName(networkName.c_str());
+				response += "<p>Network Name has been updated.</p>";
+			}
 		}
 
 		if(webServer.hasArg("network_key")) {
 			const String &networkKey = webServer.arg("network_key");
 
-			Serial.print("Network name: ");
+			Serial.print("Network key: ");
 			Serial.println(networkKey);
 
-			setESPNetworkKey(networkKey.c_str());
+			if (strlen(networkKey.c_str()) >= 8) {
+				setESPNetworkKey(networkKey.c_str());
+				response += "<p>Network Key has been updated.</p>";
+				passwordReady = true;
+			}
+			else {
+				response += "<p>Invalid Network Key!</p>";
+			}
 		}
 
 		// Save the settings to my internal memory.
 		updateSettings();
+		response += "<a href=\"/\">Go back</a>";
 
-		webServer.send(200, "text/html", "<p>The settings have been updated.</p><a href=\"/\">Go back</a>");
+		webServer.send(200, "text/html", response);
 	});
 
 	webServer.on("/exit", HTTP_POST, [&]() {
+		if (!passwordReady) {
+			webServer.send(200, "text/html", "<p>The settings are not completed!</p><a href=\"/\">Go back</a>");
+			return;
+		}
+
 		settingsReady = true;
 		webServer.send(200, "text/plain", "Stopping the server...");
 	});
@@ -232,17 +260,21 @@ void ESPSettings::setupUserSettings() {
 		Serial.println("There are no settings in the memory.");
 	}
 
-	const unsigned long beginTimeServer = millis();
+	Timer beginTimeServer;
 
 	// Run the server until the user exits manually or the timeout runs out.
-	while (!settingsReady && ((!hasSettings) || (hasSettings && millis() - beginTimeServer < settingsTimeout))) {
+	while (((!hasSettings) || (hasSettings && beginTimeServer.elapsedTime() < settingsTimeout))) {
 		webServer.handleClient();
+
+		if (settingsReady) {
+			break;
+		}
 	}
 
 	webServer.close();
 	Serial.println("Settings server stopped.");
 	
-	if (!WiFi.softAPdisconnect(false)) {
+	if (!WiFi.softAPdisconnect(false) && !WiFi.enableAP(false)) {
 		Serial.println("Failed to disconnect softAP!");
 	}
 }
