@@ -59,8 +59,8 @@ void myTimerEvent()
   // Please don't send more that 10 values per second.
   float temperature = sensor.readTemperature();
   float humidity = sensor.readHumidity();
-  Blynk.virtualWrite(V5, millis() / 1000);
-  Blynk.virtualWrite(V6, millis() / 1000);
+  Blynk.virtualWrite(V5, temperature);
+  Blynk.virtualWrite(V6, humidity);
 }
 
 void setup()
