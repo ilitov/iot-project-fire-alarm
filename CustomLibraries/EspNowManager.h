@@ -30,7 +30,7 @@ public:
 
 	static EspNowManager& instance();
 
-	bool init(MessagesProcessorBase *peersmp, MessagesProcessorBase *mymp, uint8_t channel, bool isMasterESP, const char *myMAC);
+	bool init(MessagesProcessorBase *peersmp, MessagesProcessorBase *mymp, bool isMasterESP, const char *myMAC);
 
 	// Note: This is a blocking call!
 	esp_err_t sendData(const uint8_t *data, size_t len);
@@ -47,9 +47,15 @@ public:
 	static void sendCallback(const uint8_t *macAddr, esp_now_send_status_t status);
 
 	bool isMasterAcknowledged() const;
+	void requestMasterAcknowledgement(const char *name);
+
+	// Call this function in the main loop() function.
+	void update();
 
 private:
 	EspNowManager();
+
+	uint8_t prepareChannel();
 
 private:
 	// We communicate with peers through a specific channel. 
@@ -58,6 +64,9 @@ private:
 
 	// Whether the esp-now protocol is ready.
 	bool m_active;
+
+	// Whether the current ESP is master or not.
+	bool m_isMaster;
 	
 	// Make sendData() sequential in order not to overflow the underlying protocol.
 	bool m_canSendData;
