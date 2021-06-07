@@ -8,9 +8,6 @@
 #include <esp_wifi.h>
 #include <esp_task.h>
 
-#include <AsyncTCP.h>
-#include <ESPAsyncWebServer.h>
-
 struct PeerInfo {
 	String ssid;
 	int32_t rssi;
@@ -20,7 +17,10 @@ struct PeerInfo {
 
 ESPNetworkAnnouncer::ESPNetworkAnnouncer()
 	: m_run(ATOMIC_FLAG_INIT)
-	, m_searchPeers(false) {
+	, m_startAnnounce(false)
+	, m_searchPeers(false)
+	, m_server(PORT) 
+	, m_announceStarted(false) {
 
 }
 
@@ -37,21 +37,7 @@ ESPNetworkAnnouncer& ESPNetworkAnnouncer::instance() {
 	return instance;
 }
 
-void ESPNetworkAnnouncer::announce() {
-	struct TaskPriorityState {
-		int m_oldPriority;
-
-		TaskPriorityState(int priority) : m_oldPriority(priority) {
-			vTaskPrioritySet(NULL, tskIDLE_PRIORITY);
-		}
-
-		~TaskPriorityState() {
-			vTaskPrioritySet(NULL, m_oldPriority);
-		}
-	};
-	
-	//TaskPriorityState oldTaskPriority(uxTaskPriorityGet(NULL));
-
+void ESPNetworkAnnouncer::initSoftAP() {
 	ESPSettings &espSettings = ESPSettings::instance();
 
 	const char *ssid = *espSettings.getESPNetworkName() == '\0' ? NULL : espSettings.getESPNetworkName();
@@ -72,47 +58,26 @@ void ESPNetworkAnnouncer::announce() {
 		return;
 	}
 
-	if (false == WiFi.softAP(ssid, password, espSettings.getESPNowChannel(), 0 /* hidden */)) {
+	if (false == WiFi.softAP(ssid, password, espSettings.getESPNowChannel(), 1 /* hidden */, -1)) {
 		Serial.println("Failed to start the NetworkAnnouncer!");
 		return;
 	}
 
 	IPAddress localIP(192, 168, 42, 42);
 	while (!WiFi.softAPConfig(localIP, localIP, IPAddress(255, 255, 255, 0))) {
-		delay(200);
+		delay(10);
 	}
 
 	Serial.print("softAP IP: ");
 	Serial.println(WiFi.softAPIP());
 
-	const String &returnValue = WiFi.macAddress();
+	m_server.begin();
+	m_announceStarted = true;
+}
 
-	WiFiServer server(1024);
-	server.begin();
-
-	Timer workTimer;
-	while (workTimer.elapsedTime() < WORK_FOR_TIME) {
-		WiFiClient client = server.available();
-		if (client) {
-			Serial.println("There is a client.");
-			
-			client.print("HTTP/1.1 200 OK\r\n");
-			client.print("Content-type:text/plain\r\n");
-			client.print("\r\n");
-
-			client.print(espSettings.getESPNowChannel());
-			client.print("\r\n");
-			client.print(returnValue);
-			client.print("\r\n");
-			client.flush();
-
-			delay(300);
-		}
-
-		delay(500);
-	}
-
-	server.stop();
+void ESPNetworkAnnouncer::deinitSoftAP() {
+	m_server.stop();
+	m_announceStarted = false;
 
 	WiFi.softAPdisconnect(false);
 	if (!WiFi.enableAP(false)) {
@@ -129,10 +94,6 @@ void ESPNetworkAnnouncer::searchForPeers() {
 	Serial.println(ssid);
 	Serial.print("Password: ");
 	Serial.println(password);
-
-	if (!WiFi.mode(WIFI_STA)) {
-		Serial.println("Failed to change the mode to WIFI_STA.");
-	}
 
 	// We have to search on the same channel as ESP-Now. Otherwise, there are ESP-Now send failures for the time of search.
 	const uint8_t searchChannel = ESPSettings::instance().getESPNowChannel() == ESPSettings::INVALID_CHANNEL ? 0 : ESPSettings::instance().getESPNowChannel();
@@ -156,14 +117,14 @@ void ESPNetworkAnnouncer::searchForPeers() {
 		memset(info.bssid, 0, sizeof(info.bssid));
 		MessagesMap::parseMacAddressReadable(WiFi.BSSIDstr(i).c_str(), info.bssid);
 
-		/*Serial.print(i + 1);
+		Serial.print(i + 1);
 		Serial.print(": ");
 		Serial.print(info.ssid);
 		Serial.print(" - channel: ");
-		Serial.println(info.channel);*/
+		Serial.println(info.channel);
 
 		// Add peers that match our network name.
-		if (0 == strcmp(info.ssid.c_str(), ESPSettings::instance().getESPNetworkName())	/*|| info.ssid.isEmpty()*/ /* hidden networks have empty SSID */) {
+		if (0 == strcmp(info.ssid.c_str(), ESPSettings::instance().getESPNetworkName())	|| info.ssid.isEmpty() /* hidden networks have empty SSID */) {
 			possiblePeers[idx++] = info;
 		}
 	}
@@ -223,9 +184,7 @@ void ESPNetworkAnnouncer::begin() {
 			}
 
 			if (!m_searchPeers.load(std::memory_order_acquire) && EspNowManager::instance().isMasterAcknowledged()) {
-				Serial.println("Starting the NetworkAnnouncer.");
-				announce();
-				Serial.println("Stopping the NetworkAnnouncer.");
+				m_startAnnounce.store(true, std::memory_order_release);
 			}
 		}
 
@@ -238,19 +197,22 @@ void ESPNetworkAnnouncer::notifySearchPeers() {
 
 bool ESPNetworkAnnouncer::processPeer(PeerInfo &peer, const char *ssid, const char *password, bool &stop) {
 	static const char *host = "192.168.42.42";
-	static const int port = 1024;
-	
+	static const int port = PORT;
+
 	uint8_t wifiChannel = ESPSettings::INVALID_CHANNEL;
 	String MACaddress;
 	MACaddress.reserve(LEN_ESP_MAC_ADDRESS + 1);
 
 	Timer timeout;
-	WiFi.begin(ssid, password, ESPSettings::instance().getESPNowChannel(), peer.bssid);
+	WiFi.begin(ssid, password, peer.channel, peer.bssid);
+
+	Serial.print("Connecting to peer: ");
+	Serial.println(ssid);
 
 	// Wait for connection(max 3 secs).
-	while (WiFi.status() != WL_CONNECTED && timeout.elapsedTime() < 5000) {
+	while (WiFi.status() != WL_CONNECTED && timeout.elapsedTime() < 6000) {
 		//Serial.println("Connecting to peer SoftAP...");
-		//delay(500);
+		delay(1000);
 	}
 
 	if (WiFi.status() != WL_CONNECTED) {
@@ -291,8 +253,8 @@ bool ESPNetworkAnnouncer::processPeer(PeerInfo &peer, const char *ssid, const ch
 	client.flush();
 
 	timeout.reset();
-	while (0 == client.available() && timeout.elapsedTime() < 3000) {
-		//Serial.println("Connecting to server...");
+	while (0 == client.available() && timeout.elapsedTime() < 4000) {
+		Serial.println("Connecting to server...");
 		delay(500);
 	}
 
@@ -358,4 +320,47 @@ bool ESPNetworkAnnouncer::processPeer(PeerInfo &peer, const char *ssid, const ch
 	}
 
 	return false;
+}
+
+void ESPNetworkAnnouncer::handlePeer() {
+	if (!m_startAnnounce.load(std::memory_order_acquire)) {
+		return;
+	}
+
+	static Timer announceTimer;
+	
+	if (!m_announceStarted) {
+		initSoftAP();
+		// m_announceStarted is *true* now
+
+		Serial.println("Starting the NetworkAnnouncer.");
+
+		announceTimer.reset();
+	}
+
+	WiFiClient client = m_server.available();
+	if (client) {
+		Serial.println("There is a client.");
+
+		client.print("HTTP/1.1 200 OK\r\n");
+		client.print("Content-type:text/plain\r\n");
+		client.print("\r\n");
+
+		client.print(ESPSettings::instance().getESPNowChannel());
+		client.print("\r\n");
+		client.print(WiFi.macAddress());
+		client.print("\r\n");
+		client.flush();
+
+		delay(300);
+	}
+
+	if (announceTimer.elapsedTime() > ANNOUNCE_FOR_TIME) {
+		deinitSoftAP();
+		// m_announceStarted is *false* now
+
+		Serial.println("Stopping the NetworkAnnouncer.");
+
+		m_startAnnounce.store(false, std::memory_order_release);
+	}
 }
