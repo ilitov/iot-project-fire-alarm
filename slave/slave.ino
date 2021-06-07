@@ -1,77 +1,54 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
-#include "EspNowManager.h"
 
-const unsigned char MasterMAC[6] = {0x9C,0x9C,0x1F,0xCA,0xFD,0x7C}; 
+#include "EspNowManager.h"
+#include "ESPNetworkAnnouncer.h"
+#include "EspSettings.h"
+#include "HardReset.h"
+#include "LEDBlink.h"
+
 const bool isMaster = false;
 
 static EspNowManager &espman = EspNowManager::instance();
 static SlaveProcessorPeers peerMessagesProcessor{SlaveCallbackPeers{espman}};
 static SlaveProcessorSelf myMessagesProcessor{SlaveCallbackSelf{espman}};
 
-// Functions declarations
-void authorizeMyselfToMaster(const char *name, int length);
+static ESPSettings &espSettings = ESPSettings::instance();
+static ESPNetworkAnnouncer &networkAnnouncer = ESPNetworkAnnouncer::instance();
 
 void setup() {
   Serial.begin(115200);
   WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-  
-  uint32_t wifiChannel = 2;
-  Serial.print("WiFi channel: ");
-  Serial.println(wifiChannel);
 
-  // Set the value of @wifiChannel to the channel of the master. This gives us extra robustness, otherwise there are send failures from time to time.
-  ESP_ERROR_CHECK(esp_wifi_set_promiscuous(true));
-  if(ESP_OK != esp_wifi_set_channel(wifiChannel, WIFI_SECOND_CHAN_NONE )){
-    Serial.println("Failed to set up the channel.");
+  LEDBlink setupLED(2); // LED pin = 2
+  setupLED.start();
+
+  // Setup the system which handles hard resets.
+  HardReset::instance().setup();
+  
+  // Setup the file system and ESP settings.
+  if(!espSettings.init()){
     esp_restart();
   }
-  ESP_ERROR_CHECK(esp_wifi_set_promiscuous(false));
+
+  // Setup ESP name and credentials.
+  espSettings.setupUserSettings(isMaster);
+
+  // Prepare the system which handles the search for peers.
+  networkAnnouncer.begin();
   
-  if(false == espman.init(&peerMessagesProcessor, &myMessagesProcessor, wifiChannel, isMaster, WiFi.macAddress().c_str())){
+  if(false == espman.init(&peerMessagesProcessor, &myMessagesProcessor, isMaster, WiFi.macAddress().c_str())){
     Serial.println("Failed to init ESP-NOW, restarting!");
     esp_restart();
   }
 
-  // TODO: Automate this with WebServers.
-  esp_err_t peerResult = espman.addPeer(MasterMAC);
-  if(ESP_OK != peerResult){
-    Serial.println(esp_err_to_name(peerResult));
-    esp_restart();
-  }
-
-  const char *someName = "Slave007";
-  authorizeMyselfToMaster(someName, strlen(someName));
+  // Establish connection with master.
+  espman.requestMasterAcknowledgement(espSettings.getESPName());
+  
+  // Stop the LED.
+  setupLED.stop();
 
   Serial.println("setup() completed!");
-}
-
-void authorizeMyselfToMaster(const char *name, int length){
-  const unsigned long beginTime = millis();
-  const unsigned long timeout = 60 * 1000; // 60 sec
-  const unsigned long delayms = 1000;
-
-  Message msg{};
-  MessagesMap::parseMacAddressReadable(WiFi.macAddress().c_str(), msg.m_mac);
-  memcpy(msg.m_data.name, name, length);
-  msg.m_msgId = 0;
-  msg.m_msgType = MessageType::MSG_ANNOUNCE_NAME;
-    
-  while(!espman.isMasterAcknowledged() && millis() - beginTime < timeout){
-    Serial.println("Connecting to master...");
-    
-    espman.enqueueSendDataAsync(msg);
-    Serial.print("Delay ");
-    Serial.print(delayms / 1000.f);
-    Serial.println(" sec.");
-    delay(delayms);
-  }
-
-  if(!espman.isMasterAcknowledged()){
-    Serial.println("Master doesn't know about me... :(");
-    esp_restart();
-  }
 }
 
 void sendSensorData(){
@@ -93,8 +70,12 @@ void sendSensorData(){
   espman.enqueueSendDataAsync(msg);
 }
 
-void loop() {
+void loop() {  
   Serial.println("Sending sensor data...");
   sendSensorData();
-  delay(5000);
+
+  espman.update();
+  networkAnnouncer.handlePeer();
+  
+  delay(1000);
 }

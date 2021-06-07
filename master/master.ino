@@ -5,29 +5,32 @@
 #include "EspNowManager.h"
 #include "EspSettings.h"
 #include "LEDBlink.h"
+#include "HardReset.h"
+#include "EspNetworkAnnouncer.h"
 
-const unsigned char SlaveMAC[6] = {0x7C,0x9E,0xBD,0xED,0x95,0xF4}; 
 const bool isMaster = true;
 
 static EspNowManager &espman = EspNowManager::instance();
 static MasterProcessorPeers peersProcessor{MasterCallbackPeers{espman}};
 
 static ESPSettings &espSettings = ESPSettings::instance();
+static ESPNetworkAnnouncer &networkAnnouncer = ESPNetworkAnnouncer::instance();
 
 void setupWiFi(){
   WiFi.disconnect();
-  WiFi.mode(WIFI_STA);
-  WiFi.beginSmartConfig();
+  WiFi.mode(WIFI_AP_STA);
+  //WiFi.beginSmartConfig();
+  WiFi.begin("YOUR_WIFI_NAME", "YOUR_WIFI_PASSWORD");
 
   // Configure the access to WiFi from the smartphone(app: EspTouch: SmartConfig)
-  Serial.println("Waiting for SmartConfig.");
-  while (!WiFi.smartConfigDone()) {
-    delay(500);
-    Serial.print(".");
-  }
+  //Serial.println("Waiting for SmartConfig.");
+  //while (!WiFi.smartConfigDone()) {
+  //  delay(500);
+  //  Serial.print(".");
+  //}
 
-  Serial.println();
-  Serial.println("SmartConfig received.");
+  //Serial.println();
+  //Serial.println("SmartConfig received.");
 
   while (WiFi.status() != WL_CONNECTED) {
       delay(500);
@@ -39,22 +42,25 @@ void setupWiFi(){
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
 
-  // This is needed if we are not in AP mode.
   WiFi.setSleep(WIFI_PS_NONE);
-  //esp_wifi_set_ps(WIFI_PS_NONE);
 
   // This channel must be sent to slaves through the WebServer.
-  uint32_t wifiChannel = WiFi.channel();
+  const uint32_t wifiChannel = WiFi.channel();
   Serial.print("WiFi channel: ");
   Serial.println(wifiChannel);
 
-  if(!espSettings.setESPNowChannel(wifiChannel)){
-    Serial.println("The WiFi channel is not appropriate! Restarting...");
-    esp_restart();
-  }
+  if(espSettings.getESPNowChannel() != wifiChannel){
+    Serial.println("Current wifiChannel != wifiChannel from settings.");
+    
+    if(!espSettings.setESPNowChannel(wifiChannel)){
+      Serial.println("The WiFi channel is not appropriate! Restarting...");
+      esp_restart();
+    }
 
-  // Save the settings to the internal memory.
-  espSettings.updateSettings();
+     // Save the settings to the internal memory.
+    espSettings.updateSettings();
+  }
+  
 }
 
 void setup() {
@@ -62,31 +68,47 @@ void setup() {
 
   LEDBlink setupLED(2); // LED pin = 2
   setupLED.start();
+
+  // Setup the system which handles hard resets.
+  HardReset::instance().setup();
   
   // Setup the file system and ESP settings.
-  if(!espSettings.setup()){
+  if(!espSettings.init()){
     esp_restart();
   }
 
   // Setup a phone number and credentials.
-  espSettings.setupUserSettings();
+  espSettings.setupUserSettings(isMaster);
 
   // Onboard the ESP with SmartConfig.
   setupWiFi();
 
-  if(false == espman.init(&peersProcessor, NULL, espSettings.getESPNowChannel(), isMaster, WiFi.macAddress().c_str())){
+  // Enable network announcing.
+  networkAnnouncer.begin();
+
+  if(false == espman.init(&peersProcessor, NULL, isMaster, WiFi.macAddress().c_str())){
     Serial.println("Failed to init ESP-NOW, restarting!");
     esp_restart();
   }
 
   // Stop the LED.
   setupLED.stop();
-
+  
   Serial.println("setup() completed.");
 }
 
+// All function calls in loop() are non-blocking and each should complete relatively fast.
 void loop() {
-  //Serial.println("Do something...");
+  // TODO: Do something meaningful in case of lost connection.
+  if(WiFi.status() != WL_CONNECTED){
+    Serial.println("There is no WiFi!");
+    //esp_restart();
+  }
 
-  delay(15000);
+  Serial.println("Loop...");
+  
+  espman.update();
+  networkAnnouncer.handlePeer();
+  
+  delay(1000);
 }
