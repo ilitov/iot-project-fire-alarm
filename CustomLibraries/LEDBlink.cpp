@@ -14,7 +14,9 @@ LEDBlink::~LEDBlink() {
 }
 
 void LEDBlink::start() {
-	m_run.test_and_set();
+	if (m_run.test_and_set()) {
+		return;
+	}
 
 	m_thread = std::thread([this]() {
 		while (m_run.test_and_set()) {
@@ -32,4 +34,6 @@ void LEDBlink::stop() {
 	if (m_thread.joinable()) {
 		m_thread.join();
 	}
+
+	m_run.clear();
 }
