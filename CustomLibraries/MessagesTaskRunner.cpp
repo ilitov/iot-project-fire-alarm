@@ -15,6 +15,7 @@ bool MessagesTaskRunner::push(MessagesProcessorBase *task) {
 	}
 
 	m_tasks[m_index] = std::thread(&MessagesProcessorBase::process, task);
+	m_tasksPtr[m_index] = task;
 	++m_index;
 
 	return true;
@@ -22,6 +23,8 @@ bool MessagesTaskRunner::push(MessagesProcessorBase *task) {
 
 void MessagesTaskRunner::joinTasks() {
 	for (int i = 0; i < m_index; ++i) {
+		m_tasksPtr[i]->terminate();
+
 		if (m_tasks[i].joinable()) {
 			m_tasks[i].join();
 		}

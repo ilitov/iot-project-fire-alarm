@@ -21,6 +21,7 @@ public:
 private:
 	int m_index;
 	std::array<std::thread, MAX_TASK_COUNT> m_tasks;
+	std::array<MessagesProcessorBase*, MAX_TASK_COUNT> m_tasksPtr;
 };
 
 #endif // !_MESSAGES_TASK_RUNNER_
