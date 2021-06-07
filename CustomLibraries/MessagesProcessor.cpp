@@ -2,18 +2,23 @@
 
 
 MessagesProcessorBase::MessagesProcessorBase()
-	: m_terminated(false) {
+	: m_hasWork(false)
+	, m_terminated(false) {
 
 }
 
 MessagesProcessorBase::~MessagesProcessorBase() {
 	terminate();
+	m_hasWork = false;
+	m_terminated = false;
 }
 
 bool MessagesProcessorBase::push(const Message &msg) {
 	const bool result = m_queue.push(msg);
 
 	if (result) {
+		std::lock_guard<std::mutex> lock(m_mtx);
+		m_hasWork = true;
 		m_doWork.notify_one();
 	}
 
@@ -38,14 +43,12 @@ MessagesProcessor<Callback>::MessagesProcessor(Callback &&callback)
 template <typename Callback>
 void MessagesProcessor<Callback>::process() {
 	Message msg;
-	bool hasWork = true;
+
 	std::unique_lock<std::mutex> lock(m_mtx);
 
 	while (!m_terminated) {
 		// Wait if there are no messages to process.
-		if (!hasWork) {
-			m_doWork.wait(lock);
-		}
+		m_doWork.wait(lock, [this]() { return m_terminated || m_hasWork; });
 
 		// Stop if signaled.
 		if (m_terminated) {
@@ -53,12 +56,12 @@ void MessagesProcessor<Callback>::process() {
 		}
 
 		do {
-			hasWork = m_queue.pop(msg);
+			m_hasWork = m_queue.pop(msg);
 
-			if (hasWork) {
+			if (m_hasWork) {
 				m_callback(msg);
 			}
-		} while (hasWork);
+		} while (m_hasWork && !m_terminated);
 	}
 }
 

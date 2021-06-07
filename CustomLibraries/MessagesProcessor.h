@@ -22,7 +22,8 @@ public:
 protected:
 	MessageQueue m_queue;
 
-	bool m_terminated;
+	volatile bool m_hasWork;
+	volatile bool m_terminated;
 	std::mutex m_mtx;
 	std::condition_variable m_doWork;
 };
