@@ -19,43 +19,51 @@ void PeersTimeoutWatch::cleanPeers(EspNowManager &espman, unsigned long time) {
 		--i;
 	};
 
-	for (int i = 0; i < m_size; ++i) {
-		const PeerTime &pt = m_peers[i];
+	{
+		std::lock_guard<std::mutex> lock(m_mtx);
 
-		Serial.print("last time: ");
-		Serial.println(pt.m_lastMsgTime);
-		Serial.print("now time: ");
-		Serial.println(time);
-		Serial.print("max timeout: ");
-		Serial.println(m_maxTimeout);
+		for (int i = 0; i < m_size; ++i) {
+			const PeerTime &pt = m_peers[i];
 
-		if (time > pt.m_lastMsgTime && time - pt.m_lastMsgTime > m_maxTimeout) {
-			erasePeer(i);
-		}
-		else if (time < pt.m_lastMsgTime) {
-			const unsigned long diff = (time - 0) + (static_cast<unsigned long>(-1) - pt.m_lastMsgTime);
+			Serial.print("last time: ");
+			Serial.println(pt.m_lastMsgTime.time());
+			Serial.print("now time: ");
+			Serial.println(time);
+			Serial.print("max timeout: ");
+			Serial.println(m_maxTimeout);
 
-			if (diff > m_maxTimeout) {
+			if (pt.m_lastMsgTime.elapsedTime(time) > m_maxTimeout) {
 				erasePeer(i);
 			}
 		}
 	}
 
 	for (int i = 0; i < m_size; ++i) {
-		m_peers[i].m_lastMsgTime = time;
+		// reset() is thread-safe
+		m_peers[i].m_lastMsgTime.reset();
 	}
 }
 
 void PeersTimeoutWatch::updatePeer(MessagesMap::mac_t peerMAC, unsigned long time) {
+	std::unique_lock<std::mutex> lock(m_mtx, std::try_to_lock);
+
+	// Just return if the container is being updated now.
+	if (!lock.owns_lock()) {
+		return;
+	}
+
 	for (int i = 0; i < m_size; ++i) {
 		if (m_peers[i].m_peerMAC == peerMAC) {
-			m_peers[i].m_lastMsgTime = time;
+			m_peers[i].m_lastMsgTime.reset();
 			return;
 		}
 	}
 }
 
 bool PeersTimeoutWatch::addPeer(MessagesMap::mac_t peerMAC, unsigned long time) {
+	// This is a blocking function.
+	std::lock_guard<std::mutex> lock(m_mtx);
+
 	for (int i = 0; i < m_size; ++i) {
 		if (m_peers[i].m_peerMAC == peerMAC) {
 			return false;
@@ -68,4 +76,40 @@ bool PeersTimeoutWatch::addPeer(MessagesMap::mac_t peerMAC, unsigned long time) 
 	}
 
 	return false;
+}
+
+bool PeersTimeoutWatch::activePeer(MessagesMap::mac_t peerMAC) const {
+	std::unique_lock<std::mutex> lock(m_mtx, std::try_to_lock);
+
+	// Just return if the container is being updated now.
+	if (!lock.owns_lock()) {
+		return false;
+	}
+
+	for (int i = 0; i < m_size; ++i) {
+		if (m_peers[i].m_peerMAC == peerMAC && m_peers[i].m_lastMsgTime.elapsedTime() <= m_maxTimeout) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+int PeersTimeoutWatch::activeCount() const {
+	std::unique_lock<std::mutex> lock(m_mtx, std::try_to_lock);
+
+	// Just return if the container is being updated now.
+	if (!lock.owns_lock()) {
+		return -1;
+	}
+
+	int result = 0;
+
+	for (int i = 0; i < m_size; ++i) {
+		if (m_peers[i].m_lastMsgTime.elapsedTime() < m_maxTimeout) {
+			++result;
+		}
+	}
+
+	return result;
 }
