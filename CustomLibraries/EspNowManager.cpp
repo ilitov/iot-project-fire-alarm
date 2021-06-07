@@ -290,7 +290,7 @@ uint8_t EspNowManager::prepareChannel() {
 	while (ESPSettings::instance().getESPNowChannel() == ESPSettings::INVALID_CHANNEL
 		&& timeout.elapsedTime() <= ESPNetworkAnnouncer::SEARCH_FOR_TIME + ESPNetworkAnnouncer::SEARCH_FOR_TIME / 2) {
 
-		delay(1000);
+		delay(5000);
 	}
 
 	const uint8_t wifiChannel = ESPSettings::instance().getESPNowChannel();

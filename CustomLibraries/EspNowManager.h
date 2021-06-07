@@ -47,6 +47,7 @@ public:
 	static void sendCallback(const uint8_t *macAddr, esp_now_send_status_t status);
 
 	bool isMasterAcknowledged() const;
+	bool isMaster() const { return m_isMaster; }
 	void requestMasterAcknowledgement(const char *name);
 
 	// Call this function in the main loop() function.
