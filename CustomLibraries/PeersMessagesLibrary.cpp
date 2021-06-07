@@ -51,6 +51,10 @@ bool MessagesMap::eraseLogForMacAddress(const unsigned char *mac) {
 }
 
 MessagesMap::mac_t MessagesMap::parseMacAddressReadable(const char *mac) {
+	if (!mac) {
+		return 0;
+	}
+
 	const int MAC_SIZE = 6;
 	int readHalfBytes = 0;	// readHalfBytes * 4 bits = total number of bits
 	mac_t result = 0;
