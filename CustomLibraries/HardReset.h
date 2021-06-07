@@ -2,16 +2,18 @@
 #define _HARD_RESET_HEADER_
 
 #include "Timer.h"
-#include <mutex>
+#include <atomic>
+#include <thread>
 
 // Deletes the ESP settings file if the BOOT button is held down for N seconds.
 class HardReset {
 public:
-	static const unsigned long SECONDS = 3 * 1000;
+	static const unsigned long HOLD_SECONDS = 3 * 1000;
 
 	static HardReset& instance(int FLASH_BUTTON = 0);
 
 	void setup();
+	void disable();
 	
 	// Call it in the loop() function to reset the state if needed.
 	void kick();
@@ -20,11 +22,13 @@ public:
 
 private:
 	HardReset(int FLASH_BUTTON);
+	~HardReset();
 
-	volatile bool m_reset;
+	volatile std::atomic<bool> m_reset;
 	const int m_button;
 	Timer m_time;
-	std::mutex m_mtx;
+	std::thread m_thread;
+	std::atomic_flag m_run;
 };
 
 #endif // !_HARD_RESET_HEADER_
