@@ -34,12 +34,15 @@ private:
 	
 	void announce();
 	void searchForPeers();
-	bool processPeer(PeerInfo &peer, const char *ssid, const char *password, bool &stop);
+	bool processPeer(PeerInfo &peer, const char *ssid, const char *password);
 
 	std::atomic_flag m_run;
-	std::atomic<bool> m_startAnnounce;
 	std::atomic<bool> m_searchPeers;
 	std::thread m_thread;
+
+	WiFiServer m_server;
+	bool m_announceStarted;
+	std::mutex m_announceMtx;
 };
 
 #endif // !_ESP_NETWORK_ANNOUNCER_

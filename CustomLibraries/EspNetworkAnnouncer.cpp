@@ -17,7 +17,6 @@ struct PeerInfo {
 
 ESPNetworkAnnouncer::ESPNetworkAnnouncer()
 	: m_run(ATOMIC_FLAG_INIT)
-	, m_startAnnounce(false)
 	, m_searchPeers(false)
 	, m_server(PORT) 
 	, m_announceStarted(false) {
@@ -37,7 +36,7 @@ ESPNetworkAnnouncer& ESPNetworkAnnouncer::instance() {
 	return instance;
 }
 
-void ESPNetworkAnnouncer::initSoftAP() {
+void ESPNetworkAnnouncer::announce() {
 	ESPSettings &espSettings = ESPSettings::instance();
 
 	const char *ssid = *espSettings.getESPNetworkName() == '\0' ? NULL : espSettings.getESPNetworkName();
@@ -71,13 +70,19 @@ void ESPNetworkAnnouncer::initSoftAP() {
 	Serial.print("softAP IP: ");
 	Serial.println(WiFi.softAPIP());
 
-	m_server.begin();
-	m_announceStarted = true;
-}
+	{
+		std::lock_guard<std::mutex> lock(m_announceMtx);
+		m_announceStarted = true;
+		m_server.begin();
+	}
 
-void ESPNetworkAnnouncer::deinitSoftAP() {
-	m_server.stop();
-	m_announceStarted = false;
+	delay(ANNOUNCE_FOR_TIME);
+
+	{
+		std::lock_guard<std::mutex> lock(m_announceMtx);
+		m_server.stop();
+		m_announceStarted = false;
+	}
 
 	WiFi.softAPdisconnect(false);
 	if (!WiFi.enableAP(false)) {
@@ -138,17 +143,18 @@ void ESPNetworkAnnouncer::searchForPeers() {
 	});
 
 	// Add at most 2 peers on a search.
-	for (int i = 0, addedPeers = 0; i < idx && addedPeers < 2; ++i) {
-		bool stop = false;
-		if (processPeer(possiblePeers[i], ssid, password, stop)) {
+	bool foundPeer = false;
+	for (int i = 0, addedPeers = 0; i < idx && addedPeers < 3; ++i) {
+		const bool currResult = processPeer(possiblePeers[i], ssid, password);
+		if (currResult) {
 			++addedPeers;
 		}
 
-		// Exit the function.
-		if (stop) {
-			m_searchPeers.store(false, std::memory_order_release);
-			return;
-		}
+		foundPeer = foundPeer || currResult;
+	}
+
+	if (foundPeer) {
+		m_searchPeers.store(false, std::memory_order_release);
 	}
 }
 
@@ -184,7 +190,9 @@ void ESPNetworkAnnouncer::begin() {
 			}
 
 			if (!m_searchPeers.load(std::memory_order_acquire) && EspNowManager::instance().isMasterAcknowledged()) {
-				m_startAnnounce.store(true, std::memory_order_release);
+				Serial.println("Starting the NetworkAnnouncer.");
+				announce();
+				Serial.println("Stopping the NetworkAnnouncer.");
 			}
 		}
 
@@ -195,7 +203,7 @@ void ESPNetworkAnnouncer::notifySearchPeers() {
 	m_searchPeers.store(std::memory_order_release);
 }
 
-bool ESPNetworkAnnouncer::processPeer(PeerInfo &peer, const char *ssid, const char *password, bool &stop) {
+bool ESPNetworkAnnouncer::processPeer(PeerInfo &peer, const char *ssid, const char *password) {
 	static const char *host = "192.168.42.42";
 	static const int port = PORT;
 
@@ -297,45 +305,47 @@ bool ESPNetworkAnnouncer::processPeer(PeerInfo &peer, const char *ssid, const ch
 		// Add peer to queue(note that ESP-Now is not init()-ed yet and we can't add the peers directly).
 		settings.getPeersMACAddresses().push_back(std::move(MACaddress));
 
-		// Stop searching for peers.
-		stop = true;
-
 		return true;
 	}
 
-	// Found a peer in the same ESP network.
+	// If there are several peers, add them to the queue.
 	if (wifiChannel == settings.getESPNowChannel()) {
-		// Reuse peer's bssid.
-		MessagesMap::parseMacAddressReadable(MACaddress.c_str(), peer.bssid);
-
-		if (!EspNowManager::instance().hasPeer(peer.bssid)) {
-			Serial.print("Adding peer: ");
-			for (int i = 0; i < LEN_ESP_MAC_ADDRESS; ++i) Serial.print(peer.bssid[i], HEX);
-			Serial.println();
-
-			esp_err_t res = EspNowManager::instance().addPeer(peer.bssid);
-			ESP_ERROR_CHECK_WITHOUT_ABORT(res);
-			return res == ESP_OK;
+		const std::vector<String> &MACAddressesQueue = settings.getPeersMACAddresses();
+		
+		// If the current peer is not in the list yet.
+		if (!std::any_of(MACAddressesQueue.cbegin(), MACAddressesQueue.cend(), [MACaddress](const String &s) { return s == MACaddress; })) {
+			settings.getPeersMACAddresses().push_back(std::move(MACaddress));
+			return true;
 		}
 	}
+
+	// Found a peer in the same ESP network.
+	// Note: This function is meant to be called during scans after the initial ESP-Now initialization.
+	// However, this feature is not supported yet and most probably, it wouldn't be supported anytime soon.
+
+	//if (wifiChannel == settings.getESPNowChannel()) {
+	//	// Reuse peer's bssid.
+	//	MessagesMap::parseMacAddressReadable(MACaddress.c_str(), peer.bssid);
+
+	//	if (!EspNowManager::instance().hasPeer(peer.bssid)) {
+	//		Serial.print("Adding peer: ");
+	//		for (int i = 0; i < LEN_ESP_MAC_ADDRESS; ++i) Serial.print(peer.bssid[i], HEX);
+	//		Serial.println();
+
+	//		esp_err_t res = EspNowManager::instance().addPeer(peer.bssid);
+	//		ESP_ERROR_CHECK_WITHOUT_ABORT(res);
+	//		return res == ESP_OK;
+	//	}
+	//}
 
 	return false;
 }
 
 void ESPNetworkAnnouncer::handlePeer() {
-	if (!m_startAnnounce.load(std::memory_order_acquire)) {
+	std::unique_lock<std::mutex> lock(m_announceMtx, std::try_to_lock);
+
+	if (!lock.owns_lock() || !m_announceStarted) {
 		return;
-	}
-
-	static Timer announceTimer;
-	
-	if (!m_announceStarted) {
-		initSoftAP();
-		// m_announceStarted is *true* now
-
-		Serial.println("Starting the NetworkAnnouncer.");
-
-		announceTimer.reset();
 	}
 
 	WiFiClient client = m_server.available();
@@ -355,12 +365,4 @@ void ESPNetworkAnnouncer::handlePeer() {
 		delay(300);
 	}
 
-	if (announceTimer.elapsedTime() > ANNOUNCE_FOR_TIME) {
-		deinitSoftAP();
-		// m_announceStarted is *false* now
-
-		Serial.println("Stopping the NetworkAnnouncer.");
-
-		m_startAnnounce.store(false, std::memory_order_release);
-	}
 }
