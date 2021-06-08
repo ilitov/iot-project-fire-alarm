@@ -280,20 +280,30 @@ bool EspNowManager::isMasterAcknowledged() const {
 uint8_t EspNowManager::prepareChannel() {
 	Serial.println("In prepareChannel()");
 
-	if (ESPSettings::instance().getESPNowChannel() == ESPSettings::INVALID_CHANNEL) {
+	ESPSettings &settings = ESPSettings::instance();
+
+	// There is a channel(from the user), but there are no added peers.
+	if (settings.getESPNowChannel() != ESPSettings::INVALID_CHANNEL &&
+		settings.getPeersMACAddresses().empty()) {
+
+		settings.setESPNowChannel(ESPSettings::INVALID_CHANNEL);
+		settings.updateSettings();
+	}
+
+	if (settings.getESPNowChannel() == ESPSettings::INVALID_CHANNEL) {
 		ESPNetworkAnnouncer::instance().begin();
 		ESPNetworkAnnouncer::instance().notifySearchPeers();
 	}
 
 	Timer timeout;
 
-	while (ESPSettings::instance().getESPNowChannel() == ESPSettings::INVALID_CHANNEL
+	while (settings.getESPNowChannel() == ESPSettings::INVALID_CHANNEL
 		&& timeout.elapsedTime() <= ESPNetworkAnnouncer::SEARCH_FOR_TIME + ESPNetworkAnnouncer::SEARCH_FOR_TIME / 2) {
 
 		delay(5000);
 	}
 
-	const uint8_t wifiChannel = ESPSettings::instance().getESPNowChannel();
+	const uint8_t wifiChannel = settings.getESPNowChannel();
 	Serial.print("Init with WiFiChannel: ");
 	Serial.println(wifiChannel);
 
@@ -347,6 +357,12 @@ void EspNowManager::requestMasterAcknowledgement(const char *name) {
 	}
 
 	if (!isMasterAcknowledged()) {
+		// This channel might not work at all, reset it to invalid state.
+		// The user will have to enter it manually again or the	ESP will try to find it through its
+		// search for peers.
+		ESPSettings::instance().setESPNowChannel(ESPSettings::INVALID_CHANNEL);
+		ESPSettings::instance().updateSettings();
+
 		Serial.println("Master doesn't know about me... :(");
 		esp_restart();
 	}

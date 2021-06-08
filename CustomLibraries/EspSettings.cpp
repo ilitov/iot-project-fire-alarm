@@ -1,4 +1,5 @@
 #include "EspSettings.h"
+#include "PeersMessagesLibrary.h"
 #include "Timer.h"
 #include <esp_wifi.h>
 #include <HardwareSerial.h>
@@ -119,7 +120,7 @@ bool ESPSettings::setESPNetworkKey(const char *name) {
 
 bool ESPSettings::setESPNowChannel(uint32_t channel) {
 	// From ESP-Now docs.
-	if (channel > 14) {
+	if (channel > 14 && channel != INVALID_CHANNEL) {
 		return false;
 	}
 
@@ -144,7 +145,7 @@ void ESPSettings::setupUserSettings(bool master) {
 	const bool hasSettings = existSettingsFile() && loadSettingsFromFile();
 	bool passwordReady = hasSettings;
 
-	static const unsigned long settingsTimeout = 1 * 1 * 1000; // 2 mins
+	static const unsigned long settingsTimeout = 2 * 60 * 1000; // 2 mins
 
 	WiFi.disconnect();
 	WiFi.mode(WIFI_AP_STA);
@@ -170,12 +171,15 @@ void ESPSettings::setupUserSettings(bool master) {
   <body>
   <form action="/set" method="post">
     <label for="esp_name">ESP name:</label><br>
-    <input type="text" if="esp_name" name="esp_name"><br>
+    <input type="text" id="esp_name" name="esp_name"><br>
     <label for="network_name">Network name:</label><br>
-    <input type="text" if="network_name" name="network_name"><br>
+    <input type="text" id="network_name" name="network_name"><br>
     <label for="network_key">Network password:</label><br>
-    <input type="text" if="network_key" name="network_key"><br><br>
+    <input type="text" id="network_key" name="network_key"><br><br>
     <input type="submit" value="Submit">
+  </form>
+  <form action="/mac" method="get">
+     <input type="submit" value="Add peers(MAC addresses)">
   </form>
   <form action="/exit" method="post">
      <input type="submit" value="Exit(stop the server)">
@@ -194,6 +198,12 @@ void ESPSettings::setupUserSettings(bool master) {
 	+ String("<h2>ESP MAC address: ") + String(WiFi.macAddress()) + String("</h2>")
 
 	+ String(
+		"<form action = \"/mac\" method = \"get\">											\
+		<input type = \"submit\" value = \"Add peers(MAC addresses)\">						\
+		</form>"
+	)
+
+	+ String(
 	"<form action = \"/exit\" method = \"post\">											\
 	<input type = \"submit\" value = \"Exit(stop the server)\">								\
 	</form>																					\
@@ -206,6 +216,48 @@ void ESPSettings::setupUserSettings(bool master) {
 
 	webServer.onNotFound([&]() {
 		webServer.send(404, "text/html", "<p>Page not found.</p><a href=\"/\">Go back</a>");
+	});
+
+	webServer.on("/mac", HTTP_GET, [&] {
+		webServer.send(200, "text/html", htmlMACAddresses());
+	});
+
+	webServer.on("/setMACPeer", HTTP_POST, [&]() {
+		if (webServer.hasArg("mac_peer")) {
+			String newMAC = webServer.arg("mac_peer");
+
+			Serial.print("new MAC: ");
+			Serial.println(newMAC);
+			Serial.println();
+			Serial.println(newMAC.length());
+
+			// The MAC address must not be equal to the MAC address of the current ESP and it must be valid.
+			if (WiFi.macAddress() != newMAC && MessagesMap::validReadableMACAddress(newMAC.c_str())) {
+
+				Serial.println("here");
+
+				// If the MAC address has not been added yet.
+				if (!std::any_of(m_peersMACAddresses.cbegin(), m_peersMACAddresses.cend(), [newMAC](const String &s) { return s == newMAC; })) {
+					m_peersMACAddresses.push_back(std::move(newMAC));
+				}
+			}
+		}
+
+		webServer.send(200, "text/html", htmlMACAddresses());
+	});
+
+	webServer.on("/setChannel", HTTP_POST, [&]() {
+		if (webServer.hasArg("esp_channel")) {
+			const uint8_t channel = (uint8_t)webServer.arg("esp_channel").toInt();
+
+			// The settings will be updated after the client exits. Don't update(save to file) them here.
+			if (setESPNowChannel(channel) /* && updateSettings() */) {
+				Serial.print("In /setChannel. The channel has been updated to: ");
+				Serial.println(channel);
+			}
+		}
+
+		webServer.send(200, "text/html", htmlMACAddresses());
 	});
 
 	// If there are no settings in main memory, read them from the user.
@@ -304,4 +356,60 @@ void ESPSettings::setupUserSettings(bool master) {
 	if (!WiFi.enableAP(false)) {
 		Serial.println("Failed to disconnect softAP!");
 	}
+}
+
+String ESPSettings::htmlMACAddresses() const {
+	static const char *macAddresses_html1 = R"===(
+  <!DOCTYPE HTML>
+  <html>
+  <head>
+  <title>ESP setup</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head>
+  <body>
+  <h3>My MAC address:</h3>
+  )===";
+
+	static const char *macAddresses_html2 = R"===(
+  <form action="/setMACPeer" method="post">
+    <label for="mac_peer">MAC address of a peer:</label><br>
+    <input type="text" id="mac_peer" name="mac_peer"><br>
+    <input type="submit" value="Submit">
+  </form><br>
+  <a href="/">Go back to the main page.</a>
+  </body>
+  </html>
+  )===";
+
+	String result(macAddresses_html1);
+
+	// My MAC address
+	result += "<p>" + WiFi.macAddress() + "</p>";
+
+	result += " <h3>List of added MAC addresses:</h3>";
+
+	for (const String &s : m_peersMACAddresses) {
+		result += "<p>" + s + "</p>";
+	}
+
+	result +=	"<span>You can add </span><span>" +
+				String(MAX_PEERS_FROM_USER - (int)m_peersMACAddresses.size()) +
+				"</span><span> more peers.</span><br>";
+
+	result +=	"<span>The ESP is using WiFi channel: </span><span>" +
+				(m_espNowChannel != INVALID_CHANNEL ? String(m_espNowChannel) : String("INVALID")) +
+				"</span>";
+
+	result += 
+	R"===(
+	<form action="/setChannel" method="post">
+		<label for="esp_channel">Set a WiFi channel(you can leave it blank):</label>
+		<input type="number" id="esp_channel" name="esp_channel"><br>
+		<input type="submit" value="Submit">
+	</form><hr>
+	)===";
+
+	result += macAddresses_html2;
+
+	return result;
 }

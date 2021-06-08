@@ -37,6 +37,8 @@ public:
 	static mac_t parseMacAddress(const unsigned char *mac);
 	static void parseMacAddress(mac_t mac, unsigned char *destMac);
 
+	static bool validReadableMACAddress(const char *mac);
+
 private:
 	container_t m_mapMacToRecord;
 };

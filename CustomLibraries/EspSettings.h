@@ -14,6 +14,8 @@ class ESPSettings {
 	static const int MAX_LEN_NETWORK_NAME = MAX_LEN_ESP_NAME;
 	static const int MAX_LEN_NETWORK_KEY = 17;
 
+	static const int MAX_PEERS_FROM_USER = 6; // random number
+
 public:
 	static const uint8_t INVALID_CHANNEL = 42;
 
@@ -45,6 +47,8 @@ private:
 
 	bool loadSettingsFromFile();
 	bool saveSettingsToFile();
+
+	String htmlMACAddresses() const;
 
 private:
 	char m_espName[MAX_LEN_ESP_NAME];

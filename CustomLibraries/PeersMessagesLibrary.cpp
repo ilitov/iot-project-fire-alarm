@@ -1,4 +1,5 @@
 #include "PeersMessagesLibrary.h"
+#include <cstring>
 
 bool MessagesMap::MessageRecord::add(const MessageType type, const id_t id) {
 	auto it = m_mapTypeToId.find(type);
@@ -104,4 +105,29 @@ void MessagesMap::parseMacAddress(mac_t mac, unsigned char *destMac) {
 		destMac[i] = (mac & 0xff);
 		mac >>= 8u;
 	}
+}
+
+bool MessagesMap::validReadableMACAddress(const char *mac) {
+	const size_t len = strlen(mac);
+
+	if (len != 6 * 2 + 5) {
+		return false;
+	}
+
+	auto validDigit = [](char c) {
+		return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
+	};
+
+	for (size_t i = 1; i <= len; ++i) {
+		if (i % 3 == 0) {
+			if (mac[i - 1] != ':') {
+				return false;
+			}
+		}
+		else if (!validDigit(mac[i - 1])) {
+			return false;
+		}
+	}
+
+	return true;
 }
