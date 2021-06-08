@@ -1,5 +1,6 @@
 #include "HardReset.h"
 #include "EspSettings.h"
+#include "LEDBlink.h"
 #include <HardwareSerial.h>
 #include <esp32-hal.h>
 
@@ -45,6 +46,11 @@ void HardReset::kick() {
 		if (!ESPSettings::instance().deleteSettings()) {
 			Serial.println("Could not delete ESP settings.");
 		}
+
+		LEDBlink blink(2, 50); // LED pin = 2; delay = 50ms
+		blink.start();
+		delay(500);
+		blink.stop();
 
 		Serial.println("Rebooting...");
 		esp_restart();
