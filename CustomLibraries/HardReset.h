@@ -24,7 +24,6 @@ private:
 	HardReset(int FLASH_BUTTON);
 	~HardReset();
 
-	volatile std::atomic<bool> m_reset;
 	const int m_button;
 	Timer m_time;
 	std::thread m_thread;
