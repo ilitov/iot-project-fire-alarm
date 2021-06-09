@@ -17,7 +17,6 @@ struct PeerInfo {
 
 ESPNetworkAnnouncer::ESPNetworkAnnouncer()
 	: m_run(ATOMIC_FLAG_INIT)
-	, m_searchPeers(false)
 	, m_server(PORT) 
 	, m_announceStarted(false) {
 
@@ -36,7 +35,7 @@ ESPNetworkAnnouncer& ESPNetworkAnnouncer::instance() {
 	return instance;
 }
 
-void ESPNetworkAnnouncer::announce() {
+void ESPNetworkAnnouncer::initSoftAP() {
 	ESPSettings &espSettings = ESPSettings::instance();
 
 	const char *ssid = *espSettings.getESPNetworkName() == '\0' ? NULL : espSettings.getESPNetworkName();
@@ -57,7 +56,7 @@ void ESPNetworkAnnouncer::announce() {
 		return;
 	}
 
-	if (false == WiFi.softAP(ssid, password, espSettings.getESPNowChannel(), 1 /* hidden */, -1)) {
+	if (false == WiFi.softAP(ssid, password, espSettings.getESPNowChannel(), 1 /* hidden */, INT_MAX)) {
 		Serial.println("Failed to start the NetworkAnnouncer!");
 		return;
 	}
@@ -70,19 +69,15 @@ void ESPNetworkAnnouncer::announce() {
 	Serial.print("softAP IP: ");
 	Serial.println(WiFi.softAPIP());
 
-	{
-		std::lock_guard<std::mutex> lock(m_announceMtx);
-		m_announceStarted = true;
-		m_server.begin();
-	}
+	m_server.begin();
+	delay(100);
+	m_announceStarted = true;
+}
 
-	delay(ANNOUNCE_FOR_TIME);
-
-	{
-		std::lock_guard<std::mutex> lock(m_announceMtx);
-		m_server.stop();
-		m_announceStarted = false;
-	}
+void ESPNetworkAnnouncer::deinitSoftAP() {
+	m_server.stop();
+	delay(100);
+	m_announceStarted = false;
 
 	WiFi.softAPdisconnect(false);
 	if (!WiFi.enableAP(false)) {
@@ -91,6 +86,18 @@ void ESPNetworkAnnouncer::announce() {
 }
 
 void ESPNetworkAnnouncer::searchForPeers() {
+	Timer searchTimer;
+
+	while (searchTimer.elapsedTime() < SEARCH_FOR_TIME) {
+		if (searchForPeersImpl()) {
+			return;
+		}
+
+		delay(1000);
+	}
+}
+
+bool ESPNetworkAnnouncer::searchForPeersImpl() {
 	const char *ssid = ESPSettings::instance().getESPNetworkName();
 	const char *password = ESPSettings::instance().getESPNetworkKey();
 
@@ -153,9 +160,7 @@ void ESPNetworkAnnouncer::searchForPeers() {
 		foundPeer = foundPeer || currResult;
 	}
 
-	if (foundPeer) {
-		m_searchPeers.store(false, std::memory_order_release);
-	}
+	return foundPeer;
 }
 
 void ESPNetworkAnnouncer::begin() {
@@ -167,40 +172,11 @@ void ESPNetworkAnnouncer::begin() {
 	m_thread = std::thread([this]() {
 
 		while (m_run.test_and_set()) {
-		
-			for (Timer sleepTimer; sleepTimer.elapsedTime() < SLEEP_FOR_TIME;) {
-
-				// Break if I am notified to search for peers.
-				if (m_searchPeers.load(std::memory_order_acquire)) {
-					break;
-				}
-
-				delay(5000); // sleep for 5 sec
-			}
-		
-			if (m_searchPeers.load(std::memory_order_acquire)) {
-				for (Timer searchTimer; isSearching() && searchTimer.elapsedTime() < SEARCH_FOR_TIME;) {
-					Serial.println("Starting to search for peers.");
-					searchForPeers();
-					Serial.println("Stopping the search for peers.");
-				}
-
-				// Clear the flag after the search.
-				m_searchPeers.store(false, std::memory_order_release);
-			}
-
-			if (!m_searchPeers.load(std::memory_order_acquire) && EspNowManager::instance().isMasterAcknowledged()) {
-				Serial.println("Starting the NetworkAnnouncer.");
-				announce();
-				Serial.println("Stopping the NetworkAnnouncer.");
-			}
+			m_startAnnounce.store(true, std::memory_order_release);
+			delay(SLEEP_FOR_TIME);
 		}
 
 	});
-}
-
-void ESPNetworkAnnouncer::notifySearchPeers() {
-	m_searchPeers.store(std::memory_order_release);
 }
 
 bool ESPNetworkAnnouncer::processPeer(PeerInfo &peer, const char *ssid, const char *password) {
@@ -255,34 +231,36 @@ bool ESPNetworkAnnouncer::processPeer(PeerInfo &peer, const char *ssid, const ch
 
 	// I'm using the simple client, because there are exceptions with HTTPClient from time to time?!
 	WiFiClient client;
-	client.connect(host, port);
+	client.connect(host, port, 6000);
 
-	client.print("GET / HTTP/1.1\r\nConnection: close\r\n\r\n");
-	client.flush();
+	if (client.connected()) {
+		client.print("GET / HTTP/1.1\r\nConnection: close\r\n\r\n");
+		client.flush();
 
-	timeout.reset();
-	while (0 == client.available() && timeout.elapsedTime() < 4000) {
-		Serial.println("Connecting to server...");
-		delay(500);
-	}
+		timeout.reset();
+		while (0 == client.available() && timeout.elapsedTime() < 4000) {
+			Serial.println("Connecting to server...");
+			delay(500);
+		}
 
-	while (client.available() > 0) {
-		String str = client.readStringUntil('\n');
+		while (client.available() > 0) {
+			String str = client.readStringUntil('\n');
 
-		// Empty line between the header and the body.
-		if (str.length() == 1 && str[0] == '\r') {
-			wifiChannel = static_cast<uint8_t>(client.parseInt());
-			client.readStringUntil('\n');
+			// Empty line between the header and the body.
+			if (str.length() == 1 && str[0] == '\r') {
+				wifiChannel = static_cast<uint8_t>(client.parseInt());
+				client.readStringUntil('\n');
 
-			MACaddress = client.readStringUntil('\n');
-			MACaddress.setCharAt(MACaddress.length() - 1, '\0');
+				MACaddress = client.readStringUntil('\n');
+				MACaddress.setCharAt(MACaddress.length() - 1, '\0');
 
-			Serial.print("WiFi channel: ");
-			Serial.println(wifiChannel);
-			Serial.print("MAC address: ");
-			Serial.println(MACaddress);
+				Serial.print("WiFi channel: ");
+				Serial.println(wifiChannel);
+				Serial.print("MAC address: ");
+				Serial.println(MACaddress);
 
-			break;
+				break;
+			}
 		}
 	}
 
@@ -342,10 +320,19 @@ bool ESPNetworkAnnouncer::processPeer(PeerInfo &peer, const char *ssid, const ch
 }
 
 void ESPNetworkAnnouncer::handlePeer() {
-	std::unique_lock<std::mutex> lock(m_announceMtx, std::try_to_lock);
-
-	if (!lock.owns_lock() || !m_announceStarted) {
+	if (!m_startAnnounce.load(std::memory_order_acquire)) {
 		return;
+	}
+
+	static Timer announceTimer;
+
+	if (!m_announceStarted) {
+		initSoftAP();
+		// m_announceStarted is *true* now
+
+		Serial.println("Starting the NetworkAnnouncer.");
+
+		announceTimer.reset();
 	}
 
 	WiFiClient client = m_server.available();
@@ -365,4 +352,12 @@ void ESPNetworkAnnouncer::handlePeer() {
 		delay(300);
 	}
 
+	if (announceTimer.elapsedTime() > ANNOUNCE_FOR_TIME) {
+		deinitSoftAP();
+		// m_announceStarted is *false* now
+
+		Serial.println("Stopping the NetworkAnnouncer.");
+
+		m_startAnnounce.store(false, std::memory_order_release);
+	}
 }
