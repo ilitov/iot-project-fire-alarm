@@ -12,6 +12,8 @@ static int encodeMessageRawData(MessageRaw &result, const Message &msg) {
 		std::memcpy(result.m_data + sizeof(msg.m_data.humidity), &msg.m_data.temp, sizeof(msg.m_data.temp));
 		return sizeof(msg.m_data.humidity) + sizeof(msg.m_data.temp);
 	case MessageType::MSG_STOP_ALARM:
+	case MessageType::MSG_MASTER_ACK:
+	case MessageType::MSG_MASTER_REQ_ACK:
 		std::memcpy(result.m_data, msg.m_data.macAddress, sizeof(msg.m_data.macAddress));
 		return sizeof(msg.m_data.macAddress);
 	default:
@@ -31,6 +33,8 @@ static void decodeMessageRawData(Message &result, const MessageRaw &msg) {
 		std::memcpy(&result.m_data.temp, msg.m_data + sizeof(result.m_data.humidity), sizeof(result.m_data.temp));
 		break;
 	case MessageType::MSG_STOP_ALARM:
+	case MessageType::MSG_MASTER_ACK:
+	case MessageType::MSG_MASTER_REQ_ACK:
 		std::memcpy(result.m_data.macAddress, msg.m_data, sizeof(result.m_data.macAddress));
 		break;
 	default:
@@ -62,5 +66,5 @@ Message getTransmittedMessage(const MessageRaw &msg) {
 }
 
 bool isAuthorizationMessage(MessageType type) {
-	return type == MessageType::MSG_ANNOUNCE_NAME || type == MessageType::MSG_MASTER_ACK;
+	return type == MessageType::MSG_ANNOUNCE_NAME || type == MessageType::MSG_MASTER_ACK || type == MessageType::MSG_MASTER_REQ_ACK;
 }

@@ -13,7 +13,8 @@ enum class MessageType {
 	MSG_STOP_ALARM = 1,
 	MSG_ANNOUNCE_NAME = 2,
 	MSG_MASTER_ACK = 3,
-	MSG_INVALID = 4 // the value must be the biggest in the enum!
+	MSG_MASTER_REQ_ACK = 4,
+	MSG_INVALID = 5 // the value must be the biggest in the enum!
 };
 
 static_assert(static_cast<unsigned int>(MessageType::MSG_INVALID) < (1u << (sizeof(uint8_t) * 8u)), 
@@ -43,7 +44,7 @@ static_assert(sizeof(MessageRawBase) == 12, "sizeof(MessageRawBase) != 12");
 
 // MessageRaw is being transmitted between ESPs
 struct MessageRaw : MessageRawBase {
-	static const int MAX_LEN_DATA = myMax(myMax(2 * sizeof(float), MAX_LEN_ESP_NAME), MAX_LEN_ESP_NAME);
+	static const int MAX_LEN_DATA = myMax(myMax(2 * sizeof(float), MAX_LEN_ESP_NAME), LEN_ESP_MAC_ADDRESS);
 
 	// The body of the message. 2 * (sensor values) OR (device name) OR (destionation MAC address)
 	uint8_t m_data[MAX_LEN_DATA];
@@ -66,7 +67,7 @@ struct Message {
 		};
 		
 		char name[MAX_LEN_ESP_NAME];
-		char macAddress[LEN_ESP_MAC_ADDRESS];
+		unsigned char macAddress[LEN_ESP_MAC_ADDRESS];
 
 		// add more members?
 	} m_data;				// message body(additional data)
