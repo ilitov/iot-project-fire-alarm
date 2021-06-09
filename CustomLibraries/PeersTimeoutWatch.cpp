@@ -25,14 +25,14 @@ void PeersTimeoutWatch::cleanPeers(EspNowManager &espman, unsigned long time) {
 		for (int i = 0; i < m_size; ++i) {
 			const PeerTime &pt = m_peers[i];
 
-			Serial.print("last time: ");
-			Serial.println(pt.m_lastMsgTime.time());
-			Serial.print("now time: ");
-			Serial.println(time);
-			Serial.print("max timeout: ");
-			Serial.println(m_maxTimeout);
-
 			if (pt.m_lastMsgTime.elapsedTime(time) > m_maxTimeout) {
+				Serial.print("last time: ");
+				Serial.println(pt.m_lastMsgTime.time());
+				Serial.print("now time: ");
+				Serial.println(time);
+				Serial.print("max timeout: ");
+				Serial.println(m_maxTimeout);
+
 				erasePeer(i);
 			}
 		}
