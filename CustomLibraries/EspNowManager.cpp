@@ -48,21 +48,6 @@ bool EspNowManager::init(MessagesProcessorBase *peersmp, MessagesProcessorBase *
 	// Set up the communication channel.
 	m_peerChannel = isMasterESP ? ESPSettings::instance().getESPNowChannel() : prepareChannel();
 
-	if (ESP_OK != esp_now_init()) {
-		Serial.println("Error initializing ESP-NOW. Start Wi-Fi before initializing ESP-NOW.");
-		return false;
-	}
-
-	if (ESP_OK != esp_now_register_recv_cb(receiveCallback)) {
-		Serial.println("Error registering ESP-NOW receive callback.");
-		return false;
-	}
-
-	if (ESP_OK != esp_now_register_send_cb(sendCallback)) {
-		Serial.println("Error registering ESP-NOW send callback.");
-		return false;
-	}
-
 	if (peersmp == mymp) {
 		Serial.println("Peers processor must be different from my messages processor! You can use the same class, but there must be 2 instances!");
 		return false;
@@ -93,6 +78,21 @@ bool EspNowManager::init(MessagesProcessorBase *peersmp, MessagesProcessorBase *
 		if (!m_messageTasks.push(m_myMessagesProcessor)) {
 			Serial.println("Could not start the task which processes my messages!");
 		}
+	}
+
+	if (ESP_OK != esp_now_init()) {
+		Serial.println("Error initializing ESP-NOW. Start Wi-Fi before initializing ESP-NOW.");
+		return false;
+	}
+
+	if (ESP_OK != esp_now_register_recv_cb(receiveCallback)) {
+		Serial.println("Error registering ESP-NOW receive callback.");
+		return false;
+	}
+
+	if (ESP_OK != esp_now_register_send_cb(sendCallback)) {
+		Serial.println("Error registering ESP-NOW send callback.");
+		return false;
 	}
 
 	// Add all cached peers from ESPSettings. They have been added from the user through SoftAPP configuration
@@ -189,6 +189,11 @@ bool EspNowManager::hasPeer(const unsigned char *macAddr) const {
 }
 
 bool EspNowManager::enqueueSendDataAsync(const Message &msg) {
+	// Don't send non-authorization messages if the master ESP does not know about the current ESP.
+	if (!isAuthorizationMessage(msg.m_msgType) && !isMasterAcknowledged()) {
+		return false;
+	}
+	
 	if (m_myMessagesProcessor) {
 		return m_myMessagesProcessor->push(msg);
 	}
@@ -211,6 +216,7 @@ void EspNowManager::receiveCallback(const uint8_t *macAddr, const uint8_t *data,
 	// The current ESP is a slave.
 	const MessagesMap::mac_t mac = MessagesMap::parseMacAddress(message.m_mac);
 
+
 	EspNowManager &espMan = instance();
 
 	// If the current ESP is the original sender, then drop the message.
@@ -221,7 +227,7 @@ void EspNowManager::receiveCallback(const uint8_t *macAddr, const uint8_t *data,
 	const bool isAuthorization = isAuthorizationMessage(message.m_msgType);
 	const bool isNewMessage = true;
 
-	if(!isAuthorization){
+	if (!isAuthorization) {
 		if (isNewMessage != espMan.m_mapMessages.addMessage(mac, message.m_msgType, message.m_msgId)) {
 			// The slave has already seen this message. And it is not related to authorization to/from master ESP.
 			return;
@@ -291,31 +297,18 @@ uint8_t EspNowManager::prepareChannel() {
 	}
 
 	if (settings.getESPNowChannel() == ESPSettings::INVALID_CHANNEL) {
-		ESPNetworkAnnouncer::instance().begin();
-		ESPNetworkAnnouncer::instance().notifySearchPeers();
-	}
-
-	Timer timeout;
-
-	while (settings.getESPNowChannel() == ESPSettings::INVALID_CHANNEL
-		&& timeout.elapsedTime() <= ESPNetworkAnnouncer::SEARCH_FOR_TIME + ESPNetworkAnnouncer::SEARCH_FOR_TIME / 2) {
-
-		delay(5000);
+		ESPNetworkAnnouncer::instance().searchForPeers();
 	}
 
 	const uint8_t wifiChannel = settings.getESPNowChannel();
-	Serial.print("Init with WiFiChannel: ");
-	Serial.println(wifiChannel);
-
+	
 	if (wifiChannel == ESPSettings::INVALID_CHANNEL) {
 		Serial.println("Failed to find a valid ESP-NOW channel. Restarting...");
 		esp_restart();
 	}
 
-	// Wait until the module stops searching for peers.
-	while (ESPNetworkAnnouncer::instance().isSearching()) {
-		delay(500);
-	}
+	Serial.print("Init with WiFiChannel: ");
+	Serial.println(wifiChannel);
 
 	// Else set up the channel.
 	if (ESP_OK != esp_wifi_set_channel(wifiChannel, WIFI_SECOND_CHAN_NONE)) {
@@ -330,26 +323,16 @@ uint8_t EspNowManager::prepareChannel() {
 }
 
 void EspNowManager::requestMasterAcknowledgement(const char *name) {
-	if (isMasterAcknowledged()) {
-		return;
-	}
-
 	const int length = strnlen(name, MAX_LEN_ESP_NAME);
+	
+	const unsigned long timeout = 60 * 1000; // 60 sec
+	const unsigned int delayms = 1000;
 
 	Timer waitTimer;
-	const unsigned long timeout = 60 * 1000; // 60 sec
-	const unsigned long delayms = 1000;
-
-	Message msg{};
-	MessagesMap::parseMacAddressReadable(WiFi.macAddress().c_str(), msg.m_mac);
-	memcpy(msg.m_data.name, name, length);
-	msg.m_msgId = 0;
-	msg.m_msgType = MessageType::MSG_ANNOUNCE_NAME;
 
 	while (!isMasterAcknowledged() && waitTimer.elapsedTime() < timeout) {
-		Serial.println("Connecting to master...");
+		requestMasterAcknowledgementSend(name, length);
 
-		enqueueSendDataAsync(msg);
 		Serial.print("Delay ");
 		Serial.print(delayms / 1000.f);
 		Serial.println(" sec.");
@@ -368,6 +351,17 @@ void EspNowManager::requestMasterAcknowledgement(const char *name) {
 	}
 }
 
+void EspNowManager::requestMasterAcknowledgementSend(const char *name, const int length) {
+	Message msg{};
+	MessagesMap::parseMacAddressReadable(WiFi.macAddress().c_str(), msg.m_mac);
+	memcpy(msg.m_data.name, name, length);
+	msg.m_msgId = 0;
+	msg.m_msgType = MessageType::MSG_ANNOUNCE_NAME;
+
+	Serial.println("Connecting to master...");
+	enqueueSendDataAsync(msg);
+}
+
 void EspNowManager::update() {
 	// The master does not search for peers! The slaves must find the master.
 	if (m_isMaster) {
@@ -382,14 +376,43 @@ void EspNowManager::update() {
 		return;
 	}
 
+	ESPSettings &espSettings = ESPSettings::instance();
+
 	// Very, very bad... :(((
 	if (activePeers == 0) {
 		Serial.println("There are no peers. Restarting the ESP...");
 
 		// Reset the value of the channel.
-		ESPSettings::instance().setESPNowChannel(ESPSettings::INVALID_CHANNEL);
+		espSettings.setESPNowChannel(ESPSettings::INVALID_CHANNEL);
 
 		esp_restart();
+	}
+
+	// Check whether the master ESP knows about the current ESP.
+	const int MAX_TRIES = 5;
+	static int leftTries = MAX_TRIES;
+
+	if (!isMasterAcknowledged()) {
+		const char *espName = espSettings.getESPName();
+		
+		requestMasterAcknowledgementSend(espName, strnlen(espName, MAX_LEN_ESP_NAME));
+
+		delay(500);
+
+		if (!isMasterAcknowledged()) {
+			--leftTries;
+
+			if (leftTries == 0) {
+				espSettings.setESPNowChannel(ESPSettings::INVALID_CHANNEL);
+				espSettings.updateSettings();
+
+				Serial.println("Master doesn't know about me... :(");
+				esp_restart();
+			}
+		}
+	}
+	else {
+		leftTries = MAX_TRIES;
 	}
 
 	// Search for more peers.

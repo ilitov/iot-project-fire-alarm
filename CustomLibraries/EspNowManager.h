@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <mutex>
 #include <condition_variable>
+#include <unordered_map>
 
 #include "PeersMessagesLibrary.h"
 #include "MessagesProcessor.h"
@@ -58,6 +59,9 @@ private:
 
 	uint8_t prepareChannel();
 
+	// Returns false if the timer has timed out.
+	void requestMasterAcknowledgementSend(const char *name, const int length);
+
 private:
 	// We communicate with peers through a specific channel. 
 	// Once we are connected to the mesh, the channel must be returned from a peer as a response.
@@ -93,6 +97,9 @@ private:
 
 	// Manage the list of inactive peers.
 	PeersTimeoutWatch m_peersTimeoutWatch;
+
+	// Map of (ESP MAC address, ESP Name) pairs. It is used by the master ESP to store the names of the slaves.
+	std::unordered_map<MessagesMap::mac_t, String> m_slavesMap;
 };
 
 #endif // !_ESPNOW_MANAGER_LIBRARY_
