@@ -18,28 +18,34 @@ void MasterCallbackPeers::operator()(const Message &msg) {
 		if (msg.m_msgType == MessageType::MSG_ANNOUNCE_NAME) {
 			m_espman->m_mapMessages.eraseLogForMacAddress(msg.m_mac);
 
+			// Add the message author to the map of (MAC adress, ESP name) pairs.
+			m_espman->m_slavesMap[MessagesMap::parseMacAddress(msg.m_mac)] = msg.m_data.name;
+			
+			Serial.print("[MessageType::MSG_ANNOUNCE_NAME] - Added a peer with ESP name: ");
+			Serial.println(msg.m_data.name);
+
 			// Add the ESP as a peer.
 			// This call can fail if we have no space for peers, but we hope that at least someone will add it as a peer
 			// and the message will be delivered eventually.
+			// Note: addPeer() checks for inactive peers and deletes those of them which are inactive.
 			if (ESP_OK != m_espman->addPeer(msg.m_mac)) {
 				Serial.println("Could not add a new peer in the master(MessageType::MSG_ANNOUNCE_NAME).");
 
-				// Note: addPeer() checks for inactive peers and deletes those of them which are inactive.
 			}
 
-			// Send MASTER_ACK message to the slaves.
+			// Send MASTER_ACK message to the slave.
 			Message replyMessage;
 			MessagesMap::parseMacAddress(m_espman->m_myMAC, replyMessage.m_mac);
 			replyMessage.m_msgType = MessageType::MSG_MASTER_ACK;
 			replyMessage.m_msgId = 0; // doesn't matter as authorization messages are not being saved in the messages map
 			replyMessage.m_alarmStatus = AlarmType::ALARM_NO_SMOKE_OFF; // doesn't matter as well
-				
+			memcpy(replyMessage.m_data.macAddress, msg.m_mac, sizeof(msg.m_mac)); // The MAC address of the receiver ESP.
 
 			MessageRaw transmitMsg{};
 			const int length = prepareMessageForTransmission(replyMessage, transmitMsg);
 			m_espman->sendData(reinterpret_cast<const uint8_t*>(&transmitMsg), length);
 		}
-		else if (msg.m_msgType == MessageType::MSG_MASTER_ACK) {
+		else {
 			Serial.print(__FILE__);
 			Serial.print(' ');
 			Serial.print(__LINE__);
@@ -49,7 +55,27 @@ void MasterCallbackPeers::operator()(const Message &msg) {
 
 		return;
 	}
+	// It is not an authorization message, but we don't have any records for this slave ESP.
+	else if (m_espman->m_slavesMap.find(MessagesMap::parseMacAddress(msg.m_mac)) == m_espman->m_slavesMap.end()) {
+		if (ESP_OK != m_espman->addPeer(msg.m_mac)) {
+			Serial.println("Could not add a new peer in the master.");
+		}
 
+		Message replyMessage;
+		MessagesMap::parseMacAddress(m_espman->m_myMAC, replyMessage.m_mac);
+		replyMessage.m_msgType = MessageType::MSG_MASTER_REQ_ACK;
+		replyMessage.m_msgId = 0; // doesn't matter as authorization messages are not being saved in the messages map
+		replyMessage.m_alarmStatus = AlarmType::ALARM_NO_SMOKE_OFF; // doesn't matter as well
+		memcpy(replyMessage.m_data.macAddress, msg.m_mac, sizeof(msg.m_mac)); // The MAC address of the receiver ESP.
+
+		MessageRaw transmitMsg{};
+		const int length = prepareMessageForTransmission(replyMessage, transmitMsg);
+		m_espman->sendData(reinterpret_cast<const uint8_t*>(&transmitMsg), length);
+
+		return;
+	}
+
+	return;
 	// TODO: Re-write this function to do something meaningful.
 
 	Serial.println("Sending a message to MQTT server:");
@@ -114,7 +140,7 @@ void SlaveCallbackPeers::operator()(const Message &msg) {
 	}
 
 	if (isAuthorizationMessage(msg.m_msgType)) {
-		
+
 		// There is a new ESP in the mesh.
 		if (msg.m_msgType == MessageType::MSG_ANNOUNCE_NAME) {
 			// Clean any data related to it in my message mapping.
@@ -123,9 +149,17 @@ void SlaveCallbackPeers::operator()(const Message &msg) {
 			// Add it to my list of peers.
 			m_espman->addPeer(msg.m_mac);
 		}
-		else if (msg.m_msgType == MessageType::MSG_MASTER_ACK) {
+		else if (msg.m_msgType == MessageType::MSG_MASTER_ACK && m_espman->m_myMAC == MessagesMap::parseMacAddress(msg.m_data.macAddress)) {
 			// Notify the slave that the master has seen its presence.
 			m_espman->m_masterAcknowledged.store(true, std::memory_order_release);
+
+			// Do not re-send the message if it was intended for me(m_espman->m_myMAC == MessagesMap::parseMacAddress()).
+			return;
+		}
+		else if (msg.m_msgType == MessageType::MSG_MASTER_REQ_ACK && m_espman->m_myMAC == MessagesMap::parseMacAddress(msg.m_data.macAddress)) {
+			// The master ESP does not know about the current ESP. The current ESP must announce itself to the master.
+			m_espman->m_masterAcknowledged.store(false, std::memory_order_release);
+			return;
 		}
 
 	}
