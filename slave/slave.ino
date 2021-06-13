@@ -14,7 +14,7 @@
 const bool isMaster = false;
 
 static EspNowManager &espman = EspNowManager::instance();
-static SlaveProcessorPeers pemerMessagesProcessor{SlaveCallbackPeers{espman}};
+static SlaveProcessorPeers peerMessagesProcessor{SlaveCallbackPeers{espman}};
 static SlaveProcessorSelf myMessagesProcessor{SlaveCallbackSelf{espman}};
 
 static ESPSettings &espSettings = ESPSettings::instance();
