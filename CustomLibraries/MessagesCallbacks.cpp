@@ -75,10 +75,9 @@ void MasterCallbackPeers::operator()(const Message &msg) {
 		return;
 	}
 
-	return;
 	// TODO: Re-write this function to do something meaningful.
 
-	Serial.println("Sending a message to MQTT server:");
+	//Serial.println("Sending a message to MQTT server:");
 	Serial.print("Message author: ");
 	
 	for (int i = 0; i < LEN_ESP_MAC_ADDRESS; ++i) {
