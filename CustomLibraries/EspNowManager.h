@@ -54,6 +54,9 @@ public:
 	// Call this function in the main loop() function.
 	void update();
 
+	// Map of (ESP MAC address, ESP Name) pairs. It is used by the master ESP to store the names of the slaves.
+	std::unordered_map<String, MessagesMap::mac_t> m_slavesToMacMap;
+
 private:
 	EspNowManager();
 
@@ -99,7 +102,10 @@ private:
 	PeersTimeoutWatch m_peersTimeoutWatch;
 
 	// Map of (ESP MAC address, ESP Name) pairs. It is used by the master ESP to store the names of the slaves.
-	std::unordered_map<MessagesMap::mac_t, String> m_slavesMap;
+	std::unordered_map<MessagesMap::mac_t, String> m_macToSlaveMap;
+
+
+	
 };
 
 #endif // !_ESPNOW_MANAGER_LIBRARY_

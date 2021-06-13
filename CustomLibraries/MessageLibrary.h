@@ -68,7 +68,10 @@ struct Message {
 		
 		char name[MAX_LEN_ESP_NAME];
 		unsigned char macAddress[LEN_ESP_MAC_ADDRESS];
-
+		struct {
+			unsigned char macAddress[LEN_ESP_MAC_ADDRESS];
+			unsigned long stopDurationMS;
+		} stopInformation;
 		// add more members?
 	} m_data;				// message body(additional data)
 };

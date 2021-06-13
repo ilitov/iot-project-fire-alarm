@@ -71,6 +71,25 @@ void setupWiFi(){
   
 }
 
+
+//Used for parsing telegram command - string
+String getValue(String data, char separator, int index)
+{
+  int found = 0;
+  int strIndex[] = {0, -1};
+  int maxIndex = data.length()-1;
+
+  for(int i=0; i<=maxIndex && found<=index; i++){
+    if(data.charAt(i)==separator || i==maxIndex){
+        found++;
+        strIndex[0] = strIndex[1]+1;
+        strIndex[1] = (i == maxIndex) ? i+1 : i;
+    }
+  }
+
+  return found>index ? data.substring(strIndex[0], strIndex[1]) : "";
+}
+
 // Handle what happens when you receive new messages
 void handleNewMessages(int numNewMessages) {
   Serial.println("handleNewMessages");
@@ -86,20 +105,29 @@ void handleNewMessages(int numNewMessages) {
     }
     
     // Print the received message
-    String text = bot.messages[i].text;
     Serial.println(text);
 
     String from_name = bot.messages[i].from_name;
+    String text = bot.messages[i].text;
 
-    if (text == "/stop") {
-      //TODO:
-      //1. stop given device
-      //2. if success -> send message
-      //3. if not send no message
-      String welcome = "Use the following commands to control your outputs.\n\n";
-      welcome += "/led_on to turn GPIO ON \n";
-      welcome += "/led_off to turn GPIO OFF \n";
-      welcome += "/state to request current GPIO state \n";
+    static int id = 0;
+
+    // /pause <staq> <time>
+    if (text == "/pause") {
+
+      String room = getValue(text, " ", 1);
+      unsigned long alarmPauseDuration = (unsigned long) (getValue(text, " ", 2).toInt());
+      //parse
+      Message m;
+
+      m.m_msgId = id++;
+      strcpy(m.m_data.stopInformation.macAddress, espman.m_slavesToMacMap[room].c_str());
+      MessagesMap::parseMacAddressReadable(WiFi.macAddress().c_str(),m.m_mac);
+      m.m_msgType = MessageType::MSG_STOP_ALARM;
+      m.m_data.stopInformation.stopDuration = alarmPauseDuration * 1000;
+      
+      espman.enqueueSendDataAsync(m);
+      String welcome = "Successfully stopped alarm for " + alarmPauseDuration + " seconds!";
       bot.sendMessage(chat_id, welcome, "");
     }
   }

@@ -19,8 +19,9 @@ void MasterCallbackPeers::operator()(const Message &msg) {
 			m_espman->m_mapMessages.eraseLogForMacAddress(msg.m_mac);
 
 			// Add the message author to the map of (MAC adress, ESP name) pairs.
-			m_espman->m_slavesMap[MessagesMap::parseMacAddress(msg.m_mac)] = msg.m_data.name;
-			
+			m_espman->m_macToSlaveMap[MessagesMap::parseMacAddress(msg.m_mac)] = msg.m_data.name;
+			m_espman->m_slavesToMacMap[msg.m_data.name] = MessagesMap::parseMacAddress(msg.m_mac);
+
 			Serial.print("[MessageType::MSG_ANNOUNCE_NAME] - Added a peer with ESP name: ");
 			Serial.println(msg.m_data.name);
 
@@ -56,7 +57,7 @@ void MasterCallbackPeers::operator()(const Message &msg) {
 		return;
 	}
 	// It is not an authorization message, but we don't have any records for this slave ESP.
-	else if (m_espman->m_slavesMap.find(MessagesMap::parseMacAddress(msg.m_mac)) == m_espman->m_slavesMap.end()) {
+	else if (m_espman->m_macToSlaveMap.find(MessagesMap::parseMacAddress(msg.m_mac)) == m_espman->m_macToSlaveMap.end()) {
 		if (ESP_OK != m_espman->addPeer(msg.m_mac)) {
 			Serial.println("Could not add a new peer in the master.");
 		}
@@ -131,7 +132,7 @@ void MasterCallbackPeers::operator()(const Message &msg) {
 
 SlaveCallbackPeers::SlaveCallbackPeers(EspNowManager &espman)
 	: m_espman(&espman) {
-
+		
 }
 
 void SlaveCallbackPeers::operator()(const Message &msg) {
@@ -164,6 +165,10 @@ void SlaveCallbackPeers::operator()(const Message &msg) {
 
 	}
 	
+	if (msg.m_msgType == MessageType::MSG_STOP_ALARM){
+			//TODO
+	}
+
 	// Broadcast every received peer message(because I am a slave). 
 	MessageRaw transmitMsg{};
 	const int length = prepareMessageForTransmission(msg, transmitMsg);
