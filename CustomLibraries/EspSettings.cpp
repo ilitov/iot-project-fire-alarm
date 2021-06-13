@@ -15,6 +15,7 @@ ESPSettings::ESPSettings()
 	memset(m_espName, 0, sizeof(m_espName));
 	memset(m_espNetworkName, 0, sizeof(m_espNetworkName));
 	memset(m_espNetworkKey, 0, sizeof(m_espNetworkKey));
+	memset(m_telegramChatID, 0, sizeof(m_telegramChatID));
 }
 
 ESPSettings::~ESPSettings() {
@@ -55,10 +56,10 @@ bool ESPSettings::loadSettingsFromFile() {
 	file.readBytes(m_espName, sizeof(m_espName));
 	file.readBytes(m_espNetworkName, sizeof(m_espNetworkName));
 	file.readBytes(m_espNetworkKey, sizeof(m_espNetworkKey));
+	file.readBytes(m_telegramChatID, sizeof(m_telegramChatID));
 
 	uint8_t channel;
 	file.readBytes((char*)&channel, sizeof(uint8_t));
-
 	m_espNowChannel.store(channel);
 
 	file.close();
@@ -77,6 +78,8 @@ bool ESPSettings::saveSettingsToFile() {
 	file.write((const uint8_t*)m_espName, sizeof(m_espName));
 	file.write((const uint8_t*)m_espNetworkName, sizeof(m_espNetworkName));
 	file.write((const uint8_t*)m_espNetworkKey, sizeof(m_espNetworkKey));
+	file.write((const uint8_t*)m_telegramChatID, sizeof(m_telegramChatID));
+
 	file.write(m_espNowChannel.load());
 
 	file.clearWriteError();
@@ -114,6 +117,17 @@ bool ESPSettings::setESPNetworkKey(const char *name) {
 	}
 
 	strcpy(m_espNetworkKey, name);
+
+	return true;
+}
+
+bool ESPSettings::setTelegramChatID(const char *chatID) {
+	const int len = strlen(chatID);
+	if (len + 1 >= MAX_CHAT_ID) {
+		return false;
+	}
+
+	strcpy(m_espNetworkKey, chatID);
 
 	return true;
 }
@@ -175,7 +189,9 @@ void ESPSettings::setupUserSettings(bool master) {
     <label for="network_name">Network name:</label><br>
     <input type="text" id="network_name" name="network_name"><br>
     <label for="network_key">Network password:</label><br>
-    <input type="text" id="network_key" name="network_key"><br><br>
+    <input type="text" id="network_key" name="network_key"><br>
+    <label for="chat_id">Telegram chat ID:</label><br>
+    <input type="text" id="chat_id" name="chat_id"><br><br>
     <input type="submit" value="Submit">
   </form>
   <form action="/mac" method="get">
@@ -196,6 +212,7 @@ void ESPSettings::setupUserSettings(bool master) {
 	+ String("<h2>ESP Name: ") + String(getESPName()) + String("</h2>")
 	+ String("<h2>ESP-Now network channel: ") + String(getESPNowChannel()) + String("</h2>")
 	+ String("<h2>ESP MAC address: ") + String(WiFi.macAddress()) + String("</h2>")
+	+ String("<h2>Telegram chat ID: ") + String(getTelegramChatID()) + String("</h2>")
 
 	+ String(
 		"<form action = \"/mac\" method = \"get\">											\
@@ -303,6 +320,17 @@ void ESPSettings::setupUserSettings(bool master) {
 				}
 				else {
 					response += "<p>Invalid Network Key!</p>";
+				}
+			}
+
+			if (webServer.hasArg("chat_id")) {
+				const String &chatID = webServer.arg("chat_id");
+
+				Serial.print("Telegram chat ID: ");
+				Serial.println(chatID);
+
+				if (setTelegramChatID(chatID.c_str())) {
+					response += "<p>Telegram chat ID has been updated.</p>";
 				}
 			}
 
