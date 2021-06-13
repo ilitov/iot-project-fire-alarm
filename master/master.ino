@@ -25,7 +25,6 @@ WiFiClientSecure client;
 #define BOTtoken "1887265752:AAEB7UvNeanC5WMUb2kle6U6eUG5-Rb-ybo"  
 UniversalTelegramBot bot(BOTtoken, client);
 
-
 void setupWiFi(){
   WiFi.disconnect();
   WiFi.mode(WIFI_AP_STA);
@@ -40,6 +39,11 @@ void setupWiFi(){
   
   Serial.println();
   Serial.println("SmartConfig received.");
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
 
   Serial.println();
   Serial.println("WiFi connected");
@@ -75,7 +79,7 @@ void handleNewMessages(int numNewMessages) {
   for (int i=0; i<numNewMessages; i++) {
     // Chat id of the requester
     String chat_id = String(bot.messages[i].chat_id);
-    
+
     if (chat_id != String(espSettings.getTelegramChatID())){
       bot.sendMessage(chat_id, "Unauthorized user", "");
       continue;
@@ -166,6 +170,8 @@ void loop() {
   
   espman.update();
   networkAnnouncer.handlePeer();
+
+  handleTelegramBot();
   
   delay(1000);
 }
