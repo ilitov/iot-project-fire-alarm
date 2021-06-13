@@ -14,7 +14,7 @@
 const bool isMaster = false;
 
 static EspNowManager &espman = EspNowManager::instance();
-static SlaveProcessorPeers peerMessagesProcessor{SlaveCallbackPeers{espman}};
+static SlaveProcessorPeers pemerMessagesProcessor{SlaveCallbackPeers{espman}};
 static SlaveProcessorSelf myMessagesProcessor{SlaveCallbackSelf{espman}};
 
 static ESPSettings &espSettings = ESPSettings::instance();
@@ -22,7 +22,7 @@ static ESPNetworkAnnouncer &networkAnnouncer = ESPNetworkAnnouncer::instance();
 
 Adafruit_Si7021 si7021 = Adafruit_Si7021();
 Alarm theAlarm(14);
-MQ2 mq2(4);
+MQ2 mq2(32);
 int gasThreshhold = 500;
 
 void setup() {
