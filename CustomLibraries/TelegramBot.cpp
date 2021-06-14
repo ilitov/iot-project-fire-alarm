@@ -51,10 +51,10 @@ void TelegramBot::handleNewMessages(int numNewMessages) {
 		const String &text = m_bot.messages[i].text;
 		Serial.println(text);
 
-		static int msgId = 0;
 
 		// Command template: /pause <staq> <time>
 		if (text.startsWith("/pause")) {
+			static int msgId = 0;
 			EspNowManager &espMan = EspNowManager::instance();
 
 			const std::string &room = parseCmdValue(text, ' ', 1).c_str();
@@ -85,6 +85,10 @@ void TelegramBot::handleNewMessages(int numNewMessages) {
 }
 
 void TelegramBot::sendMessage(const String &message) {
+	Serial.println("Sending message:");
+	Serial.println(ESPSettings::instance().getTelegramChatID());
+	Serial.println(message);
+
 	m_bot.sendSimpleMessage(ESPSettings::instance().getTelegramChatID(), message, "");
 }
 
@@ -121,7 +125,7 @@ void TelegramBot::taskFunction(void *taskParams) {
 			auto it = espMan.m_slavesMapToName.find(authorMAC);
 
 			if (it != espMan.m_slavesMapToName.end()) {
-				const String &message = "The fire alarm of ESP " + it->second + " has been activated.";
+				const String message = "The fire alarm of ESP " + it->second + " has been activated.";
 
 				bot.sendMessage(message);
 

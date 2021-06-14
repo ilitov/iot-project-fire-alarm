@@ -1,4 +1,5 @@
 #include "FireAlarm.h"
+#include <HardwareSerial.h> // TODO: remove
 
 FireAlarm::FireAlarm()
 	: m_isActive(false)
@@ -51,6 +52,10 @@ void FireAlarm::deactivate() {
 }
 
 void FireAlarm::disableAlarmFor(unsigned long timeMS) {
+	Serial.print("[FireAlarm] The alarm has been stopped for ");
+	Serial.print(timeMS / 1000.f);
+	Serial.println(" sec.");
+
 	m_disableTime = timeMS;
 	m_isDisabled = true;
 	m_disableTimer.reset();

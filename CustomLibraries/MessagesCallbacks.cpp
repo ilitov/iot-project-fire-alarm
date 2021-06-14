@@ -2,6 +2,7 @@
 #include "EspNowManager.h"
 #include "TelegramBot.h"
 #include "FireAlarm.h"
+#include "MQTTManager.h"
 
 MasterCallbackPeers::MasterCallbackPeers(EspNowManager &espman)
 	: m_espman(&espman) {
@@ -95,18 +96,30 @@ void MasterCallbackPeers::operator()(const Message &msg) {
 	case MessageType::MSG_ANNOUNCE_NAME:
 		Serial.println("MSG_ANNOUNCE_NAME");
 		break;
-	case MessageType::MSG_SENSOR_DATA:
+	case MessageType::MSG_SENSOR_DATA: {
 		Serial.println("MSG_SENSOR_DATA");
 		Serial.print("Temp: ");
 		Serial.println(msg.m_data.temp);
 		Serial.print("Humidity: ");
 		Serial.println(msg.m_data.humidity);
 
+		const MessagesMap::mac_t peerMAC = MessagesMap::parseMacAddress(msg.m_mac);
+
 		if (msg.m_alarmStatus == AlarmType::ALARM_SMOKE_ON) {
-			TelegramBot::instance().postMACAddress(MessagesMap::parseMacAddress(msg.m_mac));
+			TelegramBot::instance().postMACAddress(peerMAC);
+		}
+
+		auto it = m_espman->m_slavesMapToName.find(peerMAC);
+
+		if (it != m_espman->m_slavesMapToName.end()) {
+			if (!MQTTManager::instance().upload(msg, it->second)) {
+				Serial.print("Could not send data to MQTT. Peer name: ");
+				Serial.println(it->second);
+			}
 		}
 
 		break;
+	}
 	case MessageType::MSG_STOP_ALARM:
 		Serial.println("MSG_SENSOR_DATA");
 		break;

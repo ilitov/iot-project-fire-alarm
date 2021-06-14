@@ -31,9 +31,9 @@ void setup() {
   // Setup the temperature sensor.
   Wire.begin(18,19);
   if (!si7021.begin()) {
-	Serial.println("Did not find Si7021 sensor!");
-	delay(2000);
-	esp_restart();
+	  Serial.println("Did not find Si7021 sensor!");
+	  delay(2000);
+	  esp_restart();
   }
 
   // Setup the fire alarm.
@@ -77,9 +77,12 @@ void sendSensorData(){
   // Read sensor data
   float temp = si7021.readTemperature();
   float humidity = si7021.readHumidity();
-  int gasValue= mq2.readGasConcentration();
+  int gasValue = mq2.readGasConcentration();
   bool alarmIsSet = theAlarm.alarmSet(gasValue);
 
+  Serial.print("Alarm status: ");
+  Serial.println(alarmIsSet ? "on" : "off");
+  
   Message msg;
   MessagesMap::parseMacAddressReadable(WiFi.macAddress().c_str(), msg.m_mac);
   msg.m_msgType = MessageType::MSG_SENSOR_DATA;

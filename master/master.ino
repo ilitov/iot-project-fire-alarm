@@ -8,6 +8,7 @@
 #include "HardReset.h"
 #include "EspNetworkAnnouncer.h"
 #include "TelegramBot.h"
+#include "MQTTManager.h"
 
 const bool isMaster = true;
 
@@ -85,6 +86,9 @@ void setup() {
 
   // Onboard the ESP with SmartConfig.
   setupWiFi();
+
+  // Setup MQTT client.
+  MQTTManager::instance().begin();
   
   // Enable network announcing.
   networkAnnouncer.begin();
