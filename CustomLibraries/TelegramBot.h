@@ -18,6 +18,7 @@ private:
 	void handleNewMessages(int numNewMessages);
 	void handleTelegramBot();
 	void sendMessage(const String &message);
+	String parseCmdValue(const String &data, char separator, int index);
 
 	static void taskFunction(void *taskParams = nullptr);
 

@@ -1,6 +1,7 @@
 #include "MessagesCallbacks.h"
 #include "EspNowManager.h"
 #include "TelegramBot.h"
+#include "FireAlarm.h"
 
 MasterCallbackPeers::MasterCallbackPeers(EspNowManager &espman)
 	: m_espman(&espman) {
@@ -82,7 +83,7 @@ void MasterCallbackPeers::operator()(const Message &msg) {
 
 	//Serial.println("Sending a message to MQTT server:");
 	Serial.print("Message author: ");
-	
+
 	for (int i = 0; i < LEN_ESP_MAC_ADDRESS; ++i) {
 		Serial.print(msg.m_mac[i], HEX);
 		Serial.print(':');
@@ -174,7 +175,13 @@ void SlaveCallbackPeers::operator()(const Message &msg) {
 		}
 
 	}
-	
+
+	// If the command is to stop the alarm and I am the receiver.
+	if (msg.m_msgType == MessageType::MSG_STOP_ALARM && m_espman->m_myMAC == MessagesMap::parseMacAddress(msg.m_data.stopInformation.macAddress)) {
+		FireAlarm::instance().disableAlarmFor(msg.m_data.stopInformation.stopDurationMS);
+		return;
+	}
+
 	// Broadcast every received peer message(because I am a slave). 
 	MessageRaw transmitMsg{};
 	const int length = prepareMessageForTransmission(msg, transmitMsg);

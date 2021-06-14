@@ -51,19 +51,57 @@ void TelegramBot::handleNewMessages(int numNewMessages) {
 		const String &text = m_bot.messages[i].text;
 		Serial.println(text);
 
-		if (text == "/stop") {
-			//TODO:
-			//1. stop given device
-			//2. if success -> send message
-			//3. if not send no message
-			String welcome = "Hello.\n";
-			m_bot.sendSimpleMessage(chat_id, welcome, "");
+		static int msgId = 0;
+
+		// Command template: /pause <staq> <time>
+		if (text.startsWith("/pause")) {
+			EspNowManager &espMan = EspNowManager::instance();
+
+			const std::string &room = parseCmdValue(text, ' ', 1).c_str();
+			unsigned long alarmPauseDuration = static_cast<unsigned long>(parseCmdValue(text, ' ', 2).toInt());
+
+			auto it = espMan.m_slavesMapToMAC.find(room);
+
+			// If there is no such room, continue.
+			if (it == espMan.m_slavesMapToMAC.end()) {
+				continue;
+			}
+
+			Message m;
+			MessagesMap::parseMacAddressReadable(WiFi.macAddress().c_str(), m.m_mac);
+			m.m_msgType = MessageType::MSG_STOP_ALARM;
+			m.m_alarmStatus = AlarmType::ALARM_INVALID;
+			m.m_msgId = msgId++;
+
+			m.m_data.stopInformation.stopDurationMS = alarmPauseDuration * 1000; // alarmPauseDuration sec * 1000 ms
+			MessagesMap::parseMacAddress(it->second, m.m_data.stopInformation.macAddress);
+
+			if (espMan.enqueueSendDataAsync(m)) {
+				const String toBotMessage = "Successfully stopped the fire alarm for " + String(alarmPauseDuration) + " seconds!";
+				sendMessage(toBotMessage);
+			}
 		}
 	}
 }
 
 void TelegramBot::sendMessage(const String &message) {
 	m_bot.sendSimpleMessage(ESPSettings::instance().getTelegramChatID(), message, "");
+}
+
+String TelegramBot::parseCmdValue(const String &data, char separator, int index) {
+	int found = 0;
+	int strIndex[2] = { 0, -1 };
+	const int maxIndex = (int)data.length() - 1;
+
+	for (int i = 0; i <= maxIndex && found <= index; i++) {
+		if (data.charAt(i) == separator || i == maxIndex) {
+			found++;
+			strIndex[0] = strIndex[1] + 1;
+			strIndex[1] = (i == maxIndex) ? i + 1 : i;
+		}
+	}
+
+	return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
 }
 
 void TelegramBot::taskFunction(void *taskParams) {

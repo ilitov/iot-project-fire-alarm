@@ -12,6 +12,9 @@ static int encodeMessageRawData(MessageRaw &result, const Message &msg) {
 		std::memcpy(result.m_data + sizeof(msg.m_data.humidity), &msg.m_data.temp, sizeof(msg.m_data.temp));
 		return sizeof(msg.m_data.humidity) + sizeof(msg.m_data.temp);
 	case MessageType::MSG_STOP_ALARM:
+		std::memcpy(result.m_data, &msg.m_data.stopInformation.stopDurationMS, sizeof(msg.m_data.stopInformation.stopDurationMS));
+		std::memcpy(result.m_data + sizeof(msg.m_data.stopInformation.stopDurationMS), msg.m_data.stopInformation.macAddress, sizeof(msg.m_data.stopInformation.macAddress));
+		return sizeof(msg.m_data.stopInformation.stopDurationMS) + sizeof(msg.m_data.stopInformation.macAddress);
 	case MessageType::MSG_MASTER_ACK:
 	case MessageType::MSG_MASTER_REQ_ACK:
 		std::memcpy(result.m_data, msg.m_data.macAddress, sizeof(msg.m_data.macAddress));
@@ -33,6 +36,9 @@ static void decodeMessageRawData(Message &result, const MessageRaw &msg) {
 		std::memcpy(&result.m_data.temp, msg.m_data + sizeof(result.m_data.humidity), sizeof(result.m_data.temp));
 		break;
 	case MessageType::MSG_STOP_ALARM:
+		std::memcpy(&result.m_data.stopInformation.stopDurationMS, msg.m_data, sizeof(result.m_data.stopInformation.stopDurationMS));
+		std::memcpy(result.m_data.stopInformation.macAddress, msg.m_data + sizeof(result.m_data.stopInformation.stopDurationMS), sizeof(result.m_data.stopInformation.macAddress));
+		break;
 	case MessageType::MSG_MASTER_ACK:
 	case MessageType::MSG_MASTER_REQ_ACK:
 		std::memcpy(result.m_data.macAddress, msg.m_data, sizeof(result.m_data.macAddress));

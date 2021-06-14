@@ -2,7 +2,7 @@
 #include <esp_wifi.h>
 
 #include "Adafruit_Si7021.h"
-#include "alarm.hpp"
+#include "FireAlarm.h"
 #include "mq2.hpp"
 
 #include "EspNowManager.h"
@@ -20,21 +20,24 @@ static SlaveProcessorSelf myMessagesProcessor{SlaveCallbackSelf{espman}};
 static ESPSettings &espSettings = ESPSettings::instance();
 static ESPNetworkAnnouncer &networkAnnouncer = ESPNetworkAnnouncer::instance();
 
-Adafruit_Si7021 si7021 = Adafruit_Si7021();
-Alarm theAlarm(14);
-MQ2 mq2(32);
-int gasThreshhold = 500;
+static Adafruit_Si7021 si7021 = Adafruit_Si7021();
+static FireAlarm &theAlarm = FireAlarm::instance();
+static MQ2 mq2(32);
 
 void setup() {
   Serial.begin(115200);
   WiFi.mode(WIFI_STA);
   
+  // Setup the temperature sensor.
   Wire.begin(18,19);
   if (!si7021.begin()) {
-        Serial.println("Did not find Si7021 sensor!");
-        while (true)
-           ;
-    }
+	Serial.println("Did not find Si7021 sensor!");
+	delay(2000);
+	esp_restart();
+  }
+
+  // Setup the fire alarm.
+  theAlarm.begin(14);
 
   LEDBlink setupLED(2); // LED pin = 2
   setupLED.start();
@@ -67,27 +70,6 @@ void setup() {
   Serial.println("setup() completed!");
 }
 
-bool alarmSet(int gasValue)
-{
-  static bool isSet = false;
-
-  if (gasValue > gasThreshhold)
-  {
-    if (!isSet)
-    {
-      isSet = true;
-      theAlarm.activate();
-    }
-    return true;
-  }
-  else
-  {
-    isSet = false;
-    theAlarm.deactivate();
-    return false;
-  }
-}
-
 void sendSensorData(){
   // TODO: Make the whole thing a class.
   static int sensorDataID = 0;
@@ -96,7 +78,7 @@ void sendSensorData(){
   float temp = si7021.readTemperature();
   float humidity = si7021.readHumidity();
   int gasValue= mq2.readGasConcentration();
-  bool alarmIsSet = alarmSet(gasValue);
+  bool alarmIsSet = theAlarm.alarmSet(gasValue);
 
   Message msg;
   MessagesMap::parseMacAddressReadable(WiFi.macAddress().c_str(), msg.m_mac);
