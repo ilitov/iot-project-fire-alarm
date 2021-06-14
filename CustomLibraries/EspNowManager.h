@@ -20,6 +20,8 @@ class EspNowManager {
 	friend class SlaveCallbackPeers;
 	friend class SlaveCallbackSelf;
 
+	friend class TelegramBot;
+
 public:
 	static const int MAX_PEERS = ESP_NOW_MAX_TOTAL_PEER_NUM;
 	static const int MAX_PEERS_ENCRYPT = ESP_NOW_MAX_ENCRYPT_PEER_NUM;
@@ -99,7 +101,8 @@ private:
 	PeersTimeoutWatch m_peersTimeoutWatch;
 
 	// Map of (ESP MAC address, ESP Name) pairs. It is used by the master ESP to store the names of the slaves.
-	std::unordered_map<MessagesMap::mac_t, String> m_slavesMap;
+	std::unordered_map<MessagesMap::mac_t, String> m_slavesMapToName;
+	std::unordered_map<std::string, MessagesMap::mac_t> m_slavesMapToMAC;
 };
 
 #endif // !_ESPNOW_MANAGER_LIBRARY_
