@@ -4,7 +4,7 @@
 #include <mutex>
 #include <condition_variable>
 
-#include "MessageQueueLibrary.h"
+#include "QueueLibrary.h"
 #include "MessagesCallbacks.h"
 
 // A class that manages the received messages in the master ESP.
@@ -20,7 +20,7 @@ public:
 	void terminate();
 
 protected:
-	MessageQueue m_queue;
+	Queue<Message, 128> m_queue;
 
 	volatile bool m_hasWork;
 	volatile bool m_terminated;
