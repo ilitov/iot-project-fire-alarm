@@ -1,5 +1,6 @@
 #include "MessagesCallbacks.h"
 #include "EspNowManager.h"
+#include "TelegramBot.h"
 
 MasterCallbackPeers::MasterCallbackPeers(EspNowManager &espman)
 	: m_espman(&espman) {
@@ -19,8 +20,10 @@ void MasterCallbackPeers::operator()(const Message &msg) {
 			m_espman->m_mapMessages.eraseLogForMacAddress(msg.m_mac);
 
 			// Add the message author to the map of (MAC adress, ESP name) pairs.
-			m_espman->m_slavesMap[MessagesMap::parseMacAddress(msg.m_mac)] = msg.m_data.name;
-			
+			MessagesMap::mac_t peerMAC = MessagesMap::parseMacAddress(msg.m_mac);
+			m_espman->m_slavesMapToName[peerMAC] = msg.m_data.name;
+			m_espman->m_slavesMapToMAC[msg.m_data.name] = peerMAC;
+
 			Serial.print("[MessageType::MSG_ANNOUNCE_NAME] - Added a peer with ESP name: ");
 			Serial.println(msg.m_data.name);
 
@@ -56,7 +59,7 @@ void MasterCallbackPeers::operator()(const Message &msg) {
 		return;
 	}
 	// It is not an authorization message, but we don't have any records for this slave ESP.
-	else if (m_espman->m_slavesMap.find(MessagesMap::parseMacAddress(msg.m_mac)) == m_espman->m_slavesMap.end()) {
+	else if (m_espman->m_slavesMapToName.find(MessagesMap::parseMacAddress(msg.m_mac)) == m_espman->m_slavesMapToName.end()) {
 		if (ESP_OK != m_espman->addPeer(msg.m_mac)) {
 			Serial.println("Could not add a new peer in the master.");
 		}
@@ -93,6 +96,15 @@ void MasterCallbackPeers::operator()(const Message &msg) {
 		break;
 	case MessageType::MSG_SENSOR_DATA:
 		Serial.println("MSG_SENSOR_DATA");
+		Serial.print("Temp: ");
+		Serial.println(msg.m_data.temp);
+		Serial.print("Humidity: ");
+		Serial.println(msg.m_data.humidity);
+
+		if (msg.m_alarmStatus == AlarmType::ALARM_SMOKE_ON) {
+			TelegramBot::instance().postMACAddress(MessagesMap::parseMacAddress(msg.m_mac));
+		}
+
 		break;
 	case MessageType::MSG_STOP_ALARM:
 		Serial.println("MSG_SENSOR_DATA");
