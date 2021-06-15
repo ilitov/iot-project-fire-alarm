@@ -83,7 +83,7 @@ void MasterCallbackPeers::operator()(const Message &msg) {
 	// TODO: Re-write this function to do something meaningful.
 
 	//Serial.println("Sending a message to MQTT server:");
-	Serial.print("Message author: ");
+	/*Serial.print("Message author: ");
 
 	for (int i = 0; i < LEN_ESP_MAC_ADDRESS; ++i) {
 		Serial.print(msg.m_mac[i], HEX);
@@ -91,17 +91,17 @@ void MasterCallbackPeers::operator()(const Message &msg) {
 	}
 
 	Serial.println();
-	Serial.print("Message type: ");
+	Serial.print("Message type: ");*/
 	switch (msg.m_msgType) {
 	case MessageType::MSG_ANNOUNCE_NAME:
 		Serial.println("MSG_ANNOUNCE_NAME");
 		break;
 	case MessageType::MSG_SENSOR_DATA: {
-		Serial.println("MSG_SENSOR_DATA");
+	/*	Serial.println("MSG_SENSOR_DATA");
 		Serial.print("Temp: ");
 		Serial.println(msg.m_data.temp);
 		Serial.print("Humidity: ");
-		Serial.println(msg.m_data.humidity);
+		Serial.println(msg.m_data.humidity);*/
 
 		const MessagesMap::mac_t peerMAC = MessagesMap::parseMacAddress(msg.m_mac);
 
@@ -121,7 +121,7 @@ void MasterCallbackPeers::operator()(const Message &msg) {
 		break;
 	}
 	case MessageType::MSG_STOP_ALARM:
-		Serial.println("MSG_SENSOR_DATA");
+		Serial.println("MSG_STOP_ALARM");
 		break;
 	case MessageType::MSG_MASTER_ACK:
 		Serial.println("MSG_MASTER_ACK");
@@ -130,28 +130,28 @@ void MasterCallbackPeers::operator()(const Message &msg) {
 		break;
 	}
 
-	Serial.print("Alarm type: ");
-	switch (msg.m_alarmStatus) {
-	case AlarmType::ALARM_NO_SMOKE_OFF:
-		Serial.println("ALARM_NO_SMOKE_OFF");
-		break;
-	case AlarmType::ALARM_NO_SMOKE_ON:
-		Serial.println("ALARM_NO_SMOKE_ON");
-		break;
-	case AlarmType::ALARM_SMOKE_OFF:
-		Serial.println("ALARM_SMOKE_OFF");
-		break;
-	case AlarmType::ALARM_SMOKE_ON:
-		Serial.println("ALARM_SMOKE_ON");
-		break;
-	default:
-		break;
-	}
+	//Serial.print("Alarm type: ");
+	//switch (msg.m_alarmStatus) {
+	//case AlarmType::ALARM_NO_SMOKE_OFF:
+	//	Serial.println("ALARM_NO_SMOKE_OFF");
+	//	break;
+	//case AlarmType::ALARM_NO_SMOKE_ON:
+	//	Serial.println("ALARM_NO_SMOKE_ON");
+	//	break;
+	//case AlarmType::ALARM_SMOKE_OFF:
+	//	Serial.println("ALARM_SMOKE_OFF");
+	//	break;
+	//case AlarmType::ALARM_SMOKE_ON:
+	//	//Serial.println("ALARM_SMOKE_ON");
+	//	break;
+	//default:
+	//	break;
+	//}
 
-	Serial.print("Message ID: ");
+	/*Serial.print("Message ID: ");
 	Serial.println(msg.m_msgId);
 
-	Serial.println();
+	Serial.println();*/
 }
 
 SlaveCallbackPeers::SlaveCallbackPeers(EspNowManager &espman)

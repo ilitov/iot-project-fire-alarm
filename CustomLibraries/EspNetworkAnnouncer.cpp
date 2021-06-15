@@ -52,7 +52,7 @@ void ESPNetworkAnnouncer::initSoftAP() {
 		return;
 	}
 
-	if (false == WiFi.softAP(ssid, password, espSettings.getESPNowChannel(), 1 /* hidden */, INT_MAX)) {
+	if (false == WiFi.softAP(ssid, password, espSettings.getESPNowChannel(), 0 /* hidden */, INT_MAX)) {
 		Serial.println("Failed to start the NetworkAnnouncer!");
 		return;
 	}
@@ -125,14 +125,14 @@ bool ESPNetworkAnnouncer::searchForPeersImpl() {
 		memset(info.bssid, 0, sizeof(info.bssid));
 		MessagesMap::parseMacAddressReadable(WiFi.BSSIDstr(i).c_str(), info.bssid);
 
-		Serial.print(i + 1);
+		/*Serial.print(i + 1);
 		Serial.print(": ");
 		Serial.print(info.ssid);
 		Serial.print(" - channel: ");
-		Serial.println(info.channel);
+		Serial.println(info.channel);*/
 
 		// Add peers that match our network name.
-		if (0 == strcmp(info.ssid.c_str(), ESPSettings::instance().getESPNetworkName())	|| info.ssid.isEmpty() /* hidden networks have empty SSID */) {
+		if (0 == strcmp(info.ssid.c_str(), ESPSettings::instance().getESPNetworkName())	/*|| info.ssid.isEmpty() *//* hidden networks have empty SSID */) {
 			possiblePeers[idx++] = info;
 		}
 	}
