@@ -64,8 +64,9 @@ struct Message {
 		struct {
 			float temp;
 			float humidity;
+			int gas;
 		};
-		
+
 		char name[MAX_LEN_ESP_NAME];
 		unsigned char macAddress[LEN_ESP_MAC_ADDRESS];
 

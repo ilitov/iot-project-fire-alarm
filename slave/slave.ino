@@ -90,7 +90,7 @@ void sendSensorData(){
   msg.m_msgId = sensorDataID++;
   msg.m_data.temp = temp;
   msg.m_data.humidity = humidity;
-
+  msg.m_data.gas = gasValue;
   if(!espman.enqueueSendDataAsync(msg)){
     Serial.println("Failed to send the message.");
   }

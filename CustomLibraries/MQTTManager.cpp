@@ -40,11 +40,14 @@ bool MQTTManager::upload(const Message &msg, const String &room) {
 
 		const float temperature = msg.m_data.temp;
 		const float humidity = msg.m_data.humidity;
+		const int gas = msg.m_data.gas;
 
 		const String json = "{\"temperature-"
 							+ room + "\":" + String(temperature)
 							+ ",\"humidity-"
-							+ room + "\":" + String(humidity) + "}";
+							+ room + "\":" + String(humidity) +
+							+ ",\"gas-"
+							+ room + "\":" + String(gas) + "}";
 
 		//Serial.println(json.c_str());
 
