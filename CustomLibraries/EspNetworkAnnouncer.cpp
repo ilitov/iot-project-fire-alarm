@@ -3,10 +3,6 @@
 #include "Timer.h"
 #include <WiFi.h>
 #include <WebServer.h>
-#include <HTTPClient.h>
-#include <DNSServer.h>
-#include <esp_wifi.h>
-#include <esp_task.h>
 
 struct PeerInfo {
 	String ssid;
