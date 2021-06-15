@@ -22,7 +22,7 @@ TelegramBot& TelegramBot::instance() {
 }
 
 bool TelegramBot::postMACAddress(MessagesMap::mac_t mac) {
-	return m_queue.push(mac);
+	return m_queue.push(QueueType{ mac, millis() });
 }
 
 void TelegramBot::handleTelegramBot() {
@@ -51,7 +51,6 @@ void TelegramBot::handleNewMessages(int numNewMessages) {
 		const String &text = m_bot.messages[i].text;
 		Serial.println(text);
 
-
 		// Command template: /pause <staq> <time>
 		if (text.startsWith("/pause")) {
 			static int msgId = 0;
@@ -77,6 +76,14 @@ void TelegramBot::handleNewMessages(int numNewMessages) {
 			MessagesMap::parseMacAddress(it->second, m.m_data.stopInformation.macAddress);
 
 			if (espMan.enqueueSendDataAsync(m)) {
+				auto timeoutIt = m_peersNotifications.find(it->second);
+
+				// Reset the timer and change the timeout duration.
+				if (timeoutIt != m_peersNotifications.end()) {
+					timeoutIt->second.m_timer.reset();
+					timeoutIt->second.m_currentTimeout = m.m_data.stopInformation.stopDurationMS;
+				}
+
 				const String toBotMessage = "Successfully stopped the fire alarm for " + String(alarmPauseDuration) + " seconds!";
 				sendMessage(toBotMessage);
 			}
@@ -84,12 +91,12 @@ void TelegramBot::handleNewMessages(int numNewMessages) {
 	}
 }
 
-void TelegramBot::sendMessage(const String &message) {
-	Serial.println("Sending message:");
+bool TelegramBot::sendMessage(const String &message) {
+	/*Serial.println("Sending message:");
 	Serial.println(ESPSettings::instance().getTelegramChatID());
-	Serial.println(message);
+	Serial.println(message);*/
 
-	m_bot.sendSimpleMessage(ESPSettings::instance().getTelegramChatID(), message, "");
+	return m_bot.sendSimpleMessage(ESPSettings::instance().getTelegramChatID(), message, "");
 }
 
 String TelegramBot::parseCmdValue(const String &data, char separator, int index) {
@@ -112,30 +119,69 @@ void TelegramBot::taskFunction(void *taskParams) {
 	EspNowManager &espMan = EspNowManager::instance();
 	TelegramBot &bot = instance();
 
+	const unsigned long DEFAULT_NOTIFICATION_TIMEOUT = 30 * 1000; // 30 sec
+
 	while (bot.m_run.load()) {
 
 		// Handle the messages from the bot to the ESP.
 		Serial.println("Handle Telegram bot.");
 		bot.handleTelegramBot();
 
-		// Handle the messages from the ESP to the bot.
-		MessagesMap::mac_t authorMAC;
+		bool stopMessagesProcessing = false;
 
-		if (bot.m_queue.pop(authorMAC)) {
-			auto it = espMan.m_slavesMapToName.find(authorMAC);
+		while (!stopMessagesProcessing) {
+			// Handle the messages from the ESP to the bot.
+			QueueType msgInfo;
 
-			if (it != espMan.m_slavesMapToName.end()) {
+			if (bot.m_queue.pop(msgInfo)) {
+				auto it = espMan.m_slavesMapToName.find(msgInfo.m_mac);
+
+				if (it == espMan.m_slavesMapToName.end()) {
+					continue;
+				}
+
+				auto timeoutIt = bot.m_peersNotifications.find(msgInfo.m_mac);
+
+				// If there is a record.
+				if (timeoutIt != bot.m_peersNotifications.end()) {
+
+					// Drop the message.
+					if (timeoutIt->second.m_timer.elapsedTime() < timeoutIt->second.m_currentTimeout) {
+						//Serial.println("The elapsed time since the last notification is less than the timeout.");
+						//Serial.println("The alarm notification for room " + it->second + " has NOT been sent to Telegram bot.");
+						continue;
+					}
+					// Drop the message again.
+					else if (msgInfo.m_timeInserted <= timeoutIt->second.m_timer.time()) {
+						//Serial.println("Outdated message, the alarm has already been deactivated.");
+						//Serial.println("The alarm notification has NOT been sent to Telegram bot.");
+						continue;
+					}
+
+				}
+
 				const String message = "The fire alarm of ESP " + it->second + " has been activated.";
 
-				bot.sendMessage(message);
+				if (bot.sendMessage(message)) {
 
-				Serial.println("Alarm notification has been sent to Telegram bot.");
+					// Insert a new record in the map.
+					if (timeoutIt == bot.m_peersNotifications.end()) {
+						bot.m_peersNotifications[msgInfo.m_mac] = NotificationTimeout{ Timer(), DEFAULT_NOTIFICATION_TIMEOUT };
+					}
+					else {
+						// Reset the timeout timer if the message has been sent successfully.
+						timeoutIt->second.m_timer.reset();
+						timeoutIt->second.m_currentTimeout = DEFAULT_NOTIFICATION_TIMEOUT;
+					}
 
-				continue;
+					Serial.println("Alarm notification has been sent to Telegram bot.");
+				}
 			}
+
+			stopMessagesProcessing = true;
 		}
 
-		delay(2000);
+		delay(1500);
 	}
 }
 

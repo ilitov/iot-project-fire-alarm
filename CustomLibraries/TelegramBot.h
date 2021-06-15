@@ -9,20 +9,31 @@
 #include "EspSettings.h"
 #include <thread>
 #include <atomic>
+#include <map>
 
 class TelegramBot {
+	struct NotificationTimeout {
+		Timer m_timer;
+		unsigned long m_currentTimeout;
+	};
+
 private:
 	static const char *BOTToken;
 
 	TelegramBot();
 	void handleNewMessages(int numNewMessages);
 	void handleTelegramBot();
-	void sendMessage(const String &message);
+	bool sendMessage(const String &message);
 	String parseCmdValue(const String &data, char separator, int index);
 
 	static void taskFunction(void *taskParams = nullptr);
 
 public:
+	struct QueueType {
+		MessagesMap::mac_t m_mac;
+		unsigned long m_timeInserted;
+	};
+
 	~TelegramBot();
 
 	static TelegramBot& instance();
@@ -37,7 +48,8 @@ private:
 	UniversalTelegramBot m_bot;
 	TaskHandle_t m_task;
 	std::atomic<bool> m_run;
-	Queue<MessagesMap::mac_t, 128> m_queue;
+	Queue<QueueType, 128> m_queue;
+	std::map<MessagesMap::mac_t, NotificationTimeout> m_peersNotifications;
 };
 
 #endif // !_TELEGRAM_BOT_HEADER_

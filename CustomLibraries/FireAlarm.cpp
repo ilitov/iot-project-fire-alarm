@@ -31,8 +31,11 @@ bool FireAlarm::activate() {
 		if (m_disableTimer.elapsedTime() >= m_disableTime) {
 			m_isDisabled = false;
 			m_disableTime = 0;
+			Serial.println("[FireAlarm] The alarm has been activated.");
+
 		}
 		else {
+			deactivate();
 			return false;
 		}
 	}
@@ -68,10 +71,12 @@ bool FireAlarm::alarmSet(int gasValue) {
 	if (gasValue > gasThreshhold) {
 		if (!isSet) {
 			isSet = activate();
-			return isSet;
 		}
-
-		return true;
+		else {
+			isSet = !m_isDisabled;
+		}
+	
+		return isSet;
 	}
 	else {
 		isSet = false;
@@ -87,4 +92,6 @@ void FireAlarm::threadFunction() {
 		ledcWriteTone(CHANNEL, INITIAL_FREQUENCY);
 		delay(DELAY_TIME_MS);
 	}
+
+	m_isActive = false;
 }

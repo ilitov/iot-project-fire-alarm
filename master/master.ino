@@ -14,6 +14,7 @@ const bool isMaster = true;
 
 static EspNowManager &espman = EspNowManager::instance();
 static MasterProcessorPeers peersProcessor{MasterCallbackPeers{espman}};
+static SlaveProcessorSelf myMessagesProcessor{SlaveCallbackSelf{espman}};
 
 static ESPSettings &espSettings = ESPSettings::instance();
 static ESPNetworkAnnouncer &networkAnnouncer = ESPNetworkAnnouncer::instance();
@@ -93,7 +94,7 @@ void setup() {
   // Enable network announcing.
   networkAnnouncer.begin();
 
-  if(false == espman.init(&peersProcessor, NULL, isMaster, WiFi.macAddress().c_str())){
+  if(false == espman.init(&peersProcessor, &myMessagesProcessor, isMaster, WiFi.macAddress().c_str())){
     Serial.println("Failed to init ESP-NOW, restarting!");
     esp_restart();
   }
