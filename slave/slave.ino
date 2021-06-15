@@ -46,12 +46,12 @@ void setup() {
   HardReset::instance().setup();
   
   // Setup the file system and ESP settings.
-  if(!espSettings.init()){
+  if(!espSettings.init(isMaster)){
     esp_restart();
   }
 
   // Setup ESP name and credentials.
-  espSettings.setupUserSettings(isMaster);
+  espSettings.setupUserSettings();
 
   // Prepare the system which handles the search for peers.
   networkAnnouncer.begin();

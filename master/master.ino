@@ -77,12 +77,12 @@ void setup() {
   HardReset::instance().setup();
   
   // Setup the file system and ESP settings.
-  if(!espSettings.init()){
+  if(!espSettings.init(isMaster)){
     esp_restart();
   }
 
   // Setup a phone number and credentials.
-  espSettings.setupUserSettings(isMaster);
+  espSettings.setupUserSettings();
 
   // Onboard the ESP with SmartConfig.
   setupWiFi();

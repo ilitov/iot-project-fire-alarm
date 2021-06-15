@@ -24,7 +24,7 @@ public:
 
 	static ESPSettings &instance();
 
-	bool init();
+	bool init(bool isMaster);
 	bool existSettingsFile() const;
 
 	bool setESPName(const char *name);
@@ -35,7 +35,7 @@ public:
 
 	bool updateSettings();
 	bool deleteSettings();
-	void setupUserSettings(bool master);
+	void setupUserSettings();
 
 	const char* getESPName() const { return m_espName; }
 	const char* getESPNetworkName() const { return m_espNetworkName; }
@@ -59,6 +59,8 @@ private:
 	char m_espNetworkKey[MAX_LEN_NETWORK_KEY];
 	char m_telegramChatID[MAX_CHAT_ID];
 	std::atomic<uint8_t> m_espNowChannel;
+
+	bool m_isMaster;
 	// Add more members if needed.
 
 	std::vector<String> m_peersMACAddresses;

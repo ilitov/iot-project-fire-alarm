@@ -11,7 +11,9 @@
 const char *ESPSettings::SettingsFileName = "/settings.bin";
 
 ESPSettings::ESPSettings()
-	: m_espNowChannel(INVALID_CHANNEL) {
+	: m_espNowChannel(INVALID_CHANNEL)
+	, m_isMaster(false) {
+
 	memset(m_espName, 0, sizeof(m_espName));
 	memset(m_espNetworkName, 0, sizeof(m_espNetworkName));
 	memset(m_espNetworkKey, 0, sizeof(m_espNetworkKey));
@@ -27,7 +29,7 @@ ESPSettings& ESPSettings::instance() {
 	return instance;
 }
 
-bool ESPSettings::init() {
+bool ESPSettings::init(bool isMaster) {
 	if (!SPIFFS.begin(true)) {
 		Serial.println("Error! Could not mount SPIFFS.");
 		return false;
@@ -35,8 +37,14 @@ bool ESPSettings::init() {
 
 	if (existSettingsFile()) {
 		Serial.println("There is a file with settings in the memory.");
-		loadSettingsFromFile();
+
+		if (!loadSettingsFromFile()) {
+			Serial.println("Could not load the file with ESP settings!");
+			return false;
+		}
 	}
+
+	m_isMaster = isMaster;
 
 	return true;
 }
@@ -56,7 +64,10 @@ bool ESPSettings::loadSettingsFromFile() {
 	file.readBytes(m_espName, sizeof(m_espName));
 	file.readBytes(m_espNetworkName, sizeof(m_espNetworkName));
 	file.readBytes(m_espNetworkKey, sizeof(m_espNetworkKey));
-	file.readBytes(m_telegramChatID, sizeof(m_telegramChatID));
+
+	if (m_isMaster) {
+		file.readBytes(m_telegramChatID, sizeof(m_telegramChatID));
+	}
 
 	uint8_t channel;
 	file.readBytes((char*)&channel, sizeof(uint8_t));
@@ -78,7 +89,10 @@ bool ESPSettings::saveSettingsToFile() {
 	file.write((const uint8_t*)m_espName, sizeof(m_espName));
 	file.write((const uint8_t*)m_espNetworkName, sizeof(m_espNetworkName));
 	file.write((const uint8_t*)m_espNetworkKey, sizeof(m_espNetworkKey));
-	file.write((const uint8_t*)m_telegramChatID, sizeof(m_telegramChatID));
+
+	if (m_isMaster) {
+		file.write((const uint8_t*)m_telegramChatID, sizeof(m_telegramChatID));
+	}
 
 	file.write(m_espNowChannel.load());
 
@@ -122,6 +136,10 @@ bool ESPSettings::setESPNetworkKey(const char *name) {
 }
 
 bool ESPSettings::setTelegramChatID(const char *chatID) {
+	if (!m_isMaster) {
+		return false;
+	}
+
 	const int len = strlen(chatID);
 	if (len + 1 >= MAX_CHAT_ID) {
 		return false;
@@ -151,8 +169,8 @@ bool ESPSettings::deleteSettings() {
 	return SPIFFS.remove(SettingsFileName);
 }
 
-void ESPSettings::setupUserSettings(bool master) {
-	static const char *ssid = master ? "MasterDevice" : "SlaveDevice";
+void ESPSettings::setupUserSettings() {
+	static const char *ssid = m_isMaster ? "MasterDevice" : "SlaveDevice";
 	static const char *password = NULL;
 
 	std::atomic<bool> settingsReady{ false };
@@ -175,7 +193,7 @@ void ESPSettings::setupUserSettings(bool master) {
 	Serial.println(ip);
 	// !SoftAP settings
 
-	static const char *index_html = R"===(
+	const String index_html = R"===(
   <!DOCTYPE HTML>
   <html>
   <head>
@@ -190,9 +208,13 @@ void ESPSettings::setupUserSettings(bool master) {
     <input type="text" id="network_name" name="network_name"><br>
     <label for="network_key">Network password:</label><br>
     <input type="text" id="network_key" name="network_key"><br>
-	<label for="chat_id">Telegram chat ID:</label><br>
-    <input type="text" id="chat_id" name="chat_id"><br><br>
-    <input type="submit" value="Submit">
+  )==="	
+	 + String(m_isMaster ? R"===(
+							<label for="chat_id">Telegram chat ID:</label><br>
+							<input type = "text" id = "chat_id" name = "chat_id"><br>)===" : "") +
+  R"===(
+  <br>
+  <input type="submit" value="Submit">
   </form>
   <form action="/mac" method="get">
      <input type="submit" value="Add peers(MAC addresses)">
@@ -212,7 +234,9 @@ void ESPSettings::setupUserSettings(bool master) {
 	+ String("<h2>ESP Name: ") + String(getESPName()) + String("</h2>")
 	+ String("<h2>ESP-Now network channel: ") + String(getESPNowChannel()) + String("</h2>")
 	+ String("<h2>ESP MAC address: ") + String(WiFi.macAddress()) + String("</h2>")
-	+ String("<h2>Telegram chat ID: ") + String(getTelegramChatID()) + String("</h2>")
+	+ (m_isMaster ? 
+		String("<h2>Telegram chat ID: ") + String(getTelegramChatID()) + String("</h2>")	
+		: String())																			
 
 	+ String(
 		"<form action = \"/mac\" method = \"get\">											\
