@@ -10,7 +10,8 @@ static int encodeMessageRawData(MessageRaw &result, const Message &msg) {
 	case MessageType::MSG_SENSOR_DATA:
 		std::memcpy(result.m_data, &msg.m_data.humidity, sizeof(msg.m_data.humidity));
 		std::memcpy(result.m_data + sizeof(msg.m_data.humidity), &msg.m_data.temp, sizeof(msg.m_data.temp));
-		return sizeof(msg.m_data.humidity) + sizeof(msg.m_data.temp);
+		std::memcpy(result.m_data + sizeof(msg.m_data.humidity) + sizeof(msg.m_data.temp), &msg.m_data.gas, sizeof(msg.m_data.gas));
+		return sizeof(msg.m_data.humidity) + sizeof(msg.m_data.temp) + sizeof(msg.m_data.gas);
 	case MessageType::MSG_STOP_ALARM:
 		std::memcpy(result.m_data, &msg.m_data.stopInformation.stopDurationMS, sizeof(msg.m_data.stopInformation.stopDurationMS));
 		std::memcpy(result.m_data + sizeof(msg.m_data.stopInformation.stopDurationMS), msg.m_data.stopInformation.macAddress, sizeof(msg.m_data.stopInformation.macAddress));
@@ -34,6 +35,7 @@ static void decodeMessageRawData(Message &result, const MessageRaw &msg) {
 	case MessageType::MSG_SENSOR_DATA:
 		std::memcpy(&result.m_data.humidity, msg.m_data, sizeof(result.m_data.humidity));
 		std::memcpy(&result.m_data.temp, msg.m_data + sizeof(result.m_data.humidity), sizeof(result.m_data.temp));
+		std::memcpy(&result.m_data.gas, msg.m_data + sizeof(result.m_data.humidity) + sizeof(result.m_data.temp), sizeof(result.m_data.gas));
 		break;
 	case MessageType::MSG_STOP_ALARM:
 		std::memcpy(&result.m_data.stopInformation.stopDurationMS, msg.m_data, sizeof(result.m_data.stopInformation.stopDurationMS));

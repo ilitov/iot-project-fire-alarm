@@ -44,9 +44,9 @@ static_assert(sizeof(MessageRawBase) == 12, "sizeof(MessageRawBase) != 12");
 
 // MessageRaw is being transmitted between ESPs
 struct MessageRaw : MessageRawBase {
-	static const int MAX_LEN_DATA = myMax(myMax(myMax(2 * sizeof(float), MAX_LEN_ESP_NAME), LEN_ESP_MAC_ADDRESS), sizeof(unsigned long) + LEN_ESP_MAC_ADDRESS);
+	static const int MAX_LEN_DATA = myMax(myMax(myMax(2 * sizeof(float) + sizeof(short), MAX_LEN_ESP_NAME), LEN_ESP_MAC_ADDRESS), sizeof(unsigned long) + LEN_ESP_MAC_ADDRESS);
 
-	// The body of the message. 2 * (sensor values) OR (device name) OR (destionation MAC address)
+	// The body of the message. (sensor values) OR (device name) OR (destionation MAC address) or (alarm stop information)
 	uint8_t m_data[MAX_LEN_DATA];
 };
 
@@ -64,8 +64,9 @@ struct Message {
 		struct {
 			float temp;
 			float humidity;
+			short gas;
 		};
-		
+
 		char name[MAX_LEN_ESP_NAME];
 		unsigned char macAddress[LEN_ESP_MAC_ADDRESS];
 

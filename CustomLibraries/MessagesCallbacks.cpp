@@ -101,7 +101,9 @@ void MasterCallbackPeers::operator()(const Message &msg) {
 		Serial.print("Temp: ");
 		Serial.println(msg.m_data.temp);
 		Serial.print("Humidity: ");
-		Serial.println(msg.m_data.humidity);*/
+		Serial.println(msg.m_data.humidity);
+		Serial.println(msg.m_data.gas);	
+	*/
 
 		const MessagesMap::mac_t peerMAC = MessagesMap::parseMacAddress(msg.m_mac);
 
